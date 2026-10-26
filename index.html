@@ -1,0 +1,1217 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14202b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Roster Check">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head><body>
+<title>Part 117 Roster Check</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a single working column like a crew briefing sheet; input on top, verdict, crew-calendar strip, then duty-by-duty findings. */
+:root {
+  --bg: #eef1f4; --surface: #ffffff; --surface-2: #f6f8fa; --ink: #14202b; --muted: #5a6876; --line: #d6dde4;
+  --accent: #b0257f;            /* FMS magenta: active route / selection */
+  --fly: #2457a6; --train: #137a74; --rsv: #6c4fb3; --travel: #8794a1;
+  --ok: #1d7a4a; --warn: #a86a0c; --fail: #c03030;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e141a; --surface: #151d25; --surface-2: #1b252f; --ink: #e4eaf0; --muted: #8e9cab; --line: #2a3642;
+  --accent: #e266b8; --fly: #6c9be6; --train: #3fb5ad; --rsv: #a58cf0; --travel: #6f7d8b;
+  --ok: #45b97c; --warn: #e0a23c; --fail: #f06a62; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e141a; --surface: #151d25; --surface-2: #1b252f; --ink: #e4eaf0; --muted: #8e9cab; --line: #2a3642;
+  --accent: #e266b8; --fly: #6c9be6; --train: #3fb5ad; --rsv: #a58cf0; --travel: #6f7d8b;
+  --ok: #45b97c; --warn: #e0a23c; --fail: #f06a62; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px }
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: .01em; margin: 0; text-wrap: balance }
+.mono, input, textarea, select, .t { font-variant-numeric: tabular-nums }
+button, input, select, textarea { font: inherit; color: inherit }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+/* Header */
+.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 22px; border-bottom: 2px solid var(--ink); padding-bottom: 10px }
+.top h1 { font-size: 34px; line-height: 1; text-transform: uppercase; letter-spacing: .02em }
+.top h1 span { color: var(--accent) }
+.top .regs { font-family: var(--font-mono); font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase }
+
+/* Cards */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px }
+.label { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted) }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: -4px 0 16px; overflow-x: auto }
+.tab { background: none; border: 0; padding: 8px 12px 10px; cursor: pointer; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; white-space: nowrap }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent) }
+.drop { border: 1.5px dashed var(--line); border-radius: var(--radius); padding: 28px 18px; text-align: center; background: var(--surface-2); cursor: pointer; display: flex; flex-direction: column; gap: 6px; align-items: center }
+.drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface-2)) }
+.drop strong { font-size: 16px }
+.drop .hint { color: var(--muted); font-size: 13px }
+.status { margin-top: 12px; font-size: 14px; color: var(--muted); min-height: 1.5em }
+.status.err { color: var(--fail) }
+.stream { margin-top: 8px; max-height: 160px; overflow: auto; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap }
+textarea#rosterText { width: 100%; min-height: 260px; resize: vertical; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; white-space: pre; overflow-wrap: normal; overflow-x: auto }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 500 }
+.btn:hover { border-color: var(--muted) }
+.btn.primary { background: var(--ink); color: var(--surface); border-color: var(--ink) }
+.btn:disabled { opacity: .5; cursor: default }
+.note { font-size: 13px; color: var(--muted) }
+
+/* Forms */
+.fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0 }
+.field input, .field select { border: 1px solid var(--line); background: var(--surface-2); border-radius: 7px; padding: 7px 9px; width: 100%; min-width: 0 }
+.field.check { flex-direction: row; align-items: center; gap: 8px; padding-top: 18px }
+details.settings { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px }
+details > summary { cursor: pointer; font-weight: 500 }
+details.settings .fields { margin-top: 12px }
+.subhead { grid-column: 1 / -1; margin-top: 4px }
+
+/* Verdict */
+.verdict { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center }
+.verdict .badge { min-width: 92px; height: 56px; padding: 0 12px; border-radius: 28px; text-align: center; line-height: 1.05; display: grid; place-items: center; font-family: var(--font-display); font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--surface) }
+.verdict.ok .badge { background: var(--ok) } .verdict.warn .badge { background: var(--warn) } .verdict.fail .badge { background: var(--fail) }
+.verdict h2 { font-size: 30px; line-height: 1.1 }
+.verdict p { margin: 6px 0 0; color: var(--muted) }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px }
+.chip { font-family: var(--font-mono); font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2) }
+.chip b { font-weight: 600 }
+.warnings { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--warn) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 35%, var(--line)); font-size: 14px }
+.warnings ul { margin: 4px 0 0; padding-left: 18px }
+
+/* Calendar strip */
+.cal-scroll { overflow-x: auto; margin: 0 -4px; padding: 0 4px 4px }
+.cal { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(26px, 1fr); gap: 3px; min-width: 760px }
+.cal-day { display: flex; flex-direction: column; align-items: stretch; gap: 4px; cursor: default; background: none; border: 0; padding: 0 }
+.cal-day.has { cursor: pointer }
+.cal-track { position: relative; height: 112px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden }
+.cal-track::before, .cal-track::after { content: ""; position: absolute; left: 0; right: 0; border-top: 1px dashed color-mix(in srgb, var(--muted) 30%, transparent) }
+.cal-track::before { top: 25% } .cal-track::after { top: 75% }
+.cal-bar { position: absolute; left: 3px; right: 3px; border-radius: 3px; min-height: 3px }
+.k-flight { background: var(--fly) } .k-training { background: var(--train) } .k-scr, .k-ready, .k-lcr { background: var(--rsv) } .k-deadhead, .k-travel, .k-other { background: var(--travel) }
+.cal-sev { height: 5px; border-radius: 3px; background: transparent }
+.cal-sev.fail { background: var(--fail) } .cal-sev.warn { background: var(--warn) } .cal-sev.ok { background: var(--ok) }
+.cal-num { font-family: var(--font-mono); font-size: 11px; text-align: center; line-height: 1.2 }
+.cal-num span { display: block; color: var(--muted); font-size: 10px }
+.cal-day.off .cal-track { background: transparent; border-style: dashed }
+.cal-day.wknd .cal-num span { color: var(--accent) }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--muted) }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px }
+.axis { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 2px }
+
+/* Checks */
+.checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px }
+.checks li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; font-size: 14px }
+.checks .ico { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--surface); margin-top: 2px; font-family: var(--font-mono) }
+.ico.fail { background: var(--fail) } .ico.warn { background: var(--warn) } .ico.ok { background: var(--ok) } .ico.info { background: var(--travel) }
+.rule { font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 4px; margin-right: 6px; white-space: nowrap; border: 1px solid var(--line) }
+.rule.far { color: var(--fly); border-color: color-mix(in srgb, var(--fly) 40%, var(--line)) }
+.rule.cba { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)) }
+
+/* Duty list */
+.sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px }
+.sec-head h2 { font-size: 22px; text-transform: uppercase; letter-spacing: .03em }
+.filter { display: flex; gap: 6px; flex-wrap: wrap }
+.filter button { font-size: 13px; padding: 4px 10px }
+.filter button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink) }
+.duties { display: flex; flex-direction: column; gap: 10px }
+.duty { display: grid; grid-template-columns: 84px 1fr auto; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; border-left-width: 4px; scroll-margin-top: 16px }
+.duty.sev-fail { border-left-color: var(--fail) } .duty.sev-warn { border-left-color: var(--warn) } .duty.sev-ok { border-left-color: var(--ok) }
+.duty.flash { box-shadow: 0 0 0 2px var(--accent) }
+.d-date { font-family: var(--font-display); line-height: 1 }
+.d-date b { display: block; font-size: 26px; font-weight: 700; white-space: nowrap }
+.d-date span { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em }
+.d-main { min-width: 0; display: flex; flex-direction: column; gap: 10px }
+.d-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+.kind { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; color: #fff; text-transform: uppercase; letter-spacing: .04em; font-family: var(--font-mono) }
+.trip, .route { font-family: var(--font-mono); font-size: 13px; color: var(--muted) }
+.route b { color: var(--ink); font-weight: 500 }
+.metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px 14px; margin: 0 }
+.metrics div { min-width: 0 }
+.metrics dt { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted) }
+.metrics dd { margin: 0; font-family: var(--font-mono); font-size: 15px; font-weight: 500 }
+.metrics dd small { color: var(--muted); font-weight: 400; font-size: 12px }
+.meter { height: 4px; background: var(--surface-2); border-radius: 2px; margin-top: 4px; overflow: hidden; border: 1px solid var(--line) }
+.meter i { display: block; height: 100% }
+.pill { font-family: var(--font-mono); font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; text-transform: uppercase; letter-spacing: .04em; align-self: start }
+.pill.ok { background: color-mix(in srgb, var(--ok) 14%, var(--surface)); color: var(--ok) }
+.pill.warn { background: color-mix(in srgb, var(--warn) 16%, var(--surface)); color: var(--warn) }
+.pill.fail { background: color-mix(in srgb, var(--fail) 14%, var(--surface)); color: var(--fail) }
+.duty details summary { font-size: 13px; color: var(--muted) }
+.legs { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12.5px; margin-top: 8px }
+.legs th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid var(--line); padding: 4px 8px 4px 0 }
+.legs td { padding: 4px 8px 4px 0; border-bottom: 1px dashed var(--line); white-space: nowrap }
+.tbl-scroll { overflow-x: auto }
+.empty { text-align: center; padding: 30px; color: var(--muted) }
+
+/* Chart */
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px }
+.chart svg { width: 100%; height: auto; display: block }
+.chart h3 { font-size: 17px; margin-bottom: 4px }
+
+/* Rules reference */
+.ref { columns: 2 320px; column-gap: 28px; font-size: 14px }
+.ref h3 { font-size: 16px; margin: 0 0 6px; break-after: avoid }
+.ref ul { margin: 0 0 16px; padding-left: 18px; break-inside: avoid }
+.ref li { margin-bottom: 4px }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px }
+
+@media (max-width: 560px) {
+  .top h1 { font-size: 27px }
+  .verdict { grid-template-columns: 1fr }
+  .verdict .badge { justify-self: start; height: 44px; min-width: 80px; font-size: 13px }
+  .verdict h2 { font-size: 24px }
+  .duty { grid-template-columns: 1fr; gap: 10px }
+  .d-date { display: flex; gap: 8px; align-items: baseline }
+  .d-date b { font-size: 22px; display: inline }
+  .pill { justify-self: start; grid-row: 1; grid-column: 1; justify-self: end }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Part 117 <span>Roster Check</span></h1>
+    <div class="regs">14 CFR 117 &middot; PSA/ALPA CBA &sect;11, 12, 25</div>
+  </header>
+
+  <section class="card" aria-label="Schedule input">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-upload" aria-selected="true" data-panel="p-upload">Upload schedule</button>
+      <button class="tab" role="tab" id="tab-text" aria-selected="false" data-panel="p-text">Schedule text</button>
+      <button class="tab" role="tab" id="tab-add" aria-selected="false" data-panel="p-add">Add a duty</button>
+    </div>
+
+    <div id="p-upload" role="tabpanel">
+      <label class="drop" id="drop" for="fileIn">
+        <strong>Drop a screenshot or PDF of your schedule</strong>
+        <span class="hint">or click to choose files. You can also paste a screenshot (Ctrl/&#8984;+V). Several screenshots of one month work too.</span>
+        <input type="file" id="fileIn" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" multiple hidden>
+      </label>
+      <div class="status" id="upStatus" role="status"></div>
+      <div class="stream" id="upStream" hidden></div>
+    </div>
+
+    <div id="p-text" role="tabpanel" hidden>
+      <textarea id="rosterText" spellcheck="false" aria-label="Schedule text"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="runBtn">Check schedule</button>
+        <button class="btn" id="exampleBtn">Load the example</button>
+        <button class="btn" id="clearBtn">Clear</button>
+        <span class="note" id="textNote"></span>
+      </div>
+      <p class="note">One row per leg or activity: <code>MO 12 - 5123 CLT-GSO 0800 0905 0105</code> (weekday, day, DH or -, flight or code, airports, depart, arrive, block). End each duty with <code>D-END: 1700L</code>. Text copied straight from your scheduling page works as-is.</p>
+    </div>
+
+    <div id="p-add" role="tabpanel" hidden>
+      <p class="note" style="margin-top:0">Adds a row to the schedule text, for example a trip you're thinking of picking up. Add each leg, and tick "Ends the duty" on the last leg of the day.</p>
+      <form id="addForm" class="fields">
+        <div class="field"><label class="label" for="aDate">Date</label><input type="date" id="aDate" required></div>
+        <div class="field"><label class="label" for="aType">Type</label>
+          <select id="aType">
+            <option value="flight">Flight (operating)</option><option value="dh">Deadhead</option>
+            <option value="GRS">Ground school</option><option value="SIM">Simulator</option><option value="PC">Checkride</option>
+            <option value="SCR">Short-call reserve</option><option value="LCR">Long-call reserve</option><option value="RDY">Ready reserve</option>
+          </select></div>
+        <div class="field"><label class="label" for="aFlt">Flight no.</label><input id="aFlt" placeholder="5123" inputmode="numeric"></div>
+        <div class="field"><label class="label" for="aFrom">From</label><input id="aFrom" maxlength="3" placeholder="CLT" required></div>
+        <div class="field"><label class="label" for="aTo">To</label><input id="aTo" maxlength="3" placeholder="GSO" required></div>
+        <div class="field"><label class="label" for="aDep">Depart (local)</label><input type="time" id="aDep" required></div>
+        <div class="field"><label class="label" for="aArr">Arrive (local)</label><input type="time" id="aArr" required></div>
+        <div class="field check"><input type="checkbox" id="aEnd"><label for="aEnd">Ends the duty</label></div>
+        <div class="field"><label class="label" for="aRel">Release (local)</label><input type="time" id="aRel"></div>
+        <div class="field" style="justify-content:flex-end"><button class="btn primary" type="submit">Add row</button></div>
+      </form>
+      <div class="status" id="addStatus" role="status"></div>
+    </div>
+
+    <details class="settings" id="settings">
+      <summary>Settings and carry-in</summary>
+      <div class="fields">
+        <div class="field"><label class="label" for="sMonth">Schedule month</label>
+          <select id="sMonth"><option value="">Auto</option></select></div>
+        <div class="field"><label class="label" for="sYear">Year</label><input type="number" id="sYear" placeholder="Auto" min="2020" max="2040"></div>
+        <div class="field"><label class="label" for="sDom">Domicile</label><input id="sDom" maxlength="3" placeholder="Auto"></div>
+        <div class="subhead label">Carry-in from before this schedule (optional, improves the rest and cumulative checks)</div>
+        <div class="field"><label class="label" for="cRel">Last release before it</label><input type="datetime-local" id="cRel"></div>
+        <div class="field"><label class="label" for="cF7">FDP hrs, prior 7 days</label><input type="number" id="cF7" min="0" step="0.1" placeholder="0"></div>
+        <div class="field"><label class="label" for="cF28">FDP hrs, prior 28 days</label><input type="number" id="cF28" min="0" step="0.1" placeholder="0"></div>
+        <div class="field"><label class="label" for="cT28">Flight hrs, prior 28 days</label><input type="number" id="cT28" min="0" step="0.1" placeholder="0"></div>
+      </div>
+    </details>
+  </section>
+
+  <section class="card" id="verdictCard" aria-live="polite"></section>
+
+  <section class="card" id="calCard">
+    <div class="sec-head"><h2>Month at a glance</h2><span class="note" id="calNote"></span></div>
+    <div class="cal-scroll"><div class="cal" id="cal"></div></div>
+    <div class="legend">
+      <span><i class="k-flight"></i>Flight duty</span><span><i class="k-training"></i>Training</span><span><i class="k-scr"></i>Reserve</span><span><i class="k-travel"></i>Deadhead / travel</span>
+      <span><i style="background:var(--fail)"></i>Problem</span><span><i style="background:var(--warn)"></i>Close to a limit</span><span><i style="background:var(--ok)"></i>Legal</span>
+      <span>Bars run 0000 (top) to 2400 (bottom), domicile time.</span>
+    </div>
+  </section>
+
+  <section class="card" id="monthCard">
+    <div class="sec-head"><h2>Schedule-wide checks</h2></div>
+    <ul class="checks" id="monthChecks"></ul>
+  </section>
+
+  <section id="dutySec">
+    <div class="sec-head"><h2>Duty periods</h2>
+      <div class="filter" id="filter">
+        <button class="btn" aria-pressed="true" data-f="all">All</button>
+        <button class="btn" aria-pressed="false" data-f="issues">Problems &amp; cautions</button>
+      </div></div>
+    <div class="duties" id="duties"></div>
+  </section>
+
+  <section class="card" id="chartCard" hidden>
+    <div class="sec-head"><h2>Cumulative limits</h2><span class="note">Rolling totals at the end of each flight duty period</span></div>
+    <div class="charts" id="charts"></div>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary><strong>What this checks</strong> <span class="note">Rules, sources and assumptions</span></summary>
+      <div class="ref" style="margin-top:14px">
+        <h3>14 CFR Part 117 (federal)</h3>
+        <ul>
+          <li><b>&sect;117.13 Table B</b>: max FDP by report time (local time where the FDP starts) and number of operated segments. Deadhead legs aren't segments.</li>
+          <li><b>&sect;117.11 Table A</b>: max flight time, 9:00 for reports 0500-1959, otherwise 8:00.</li>
+          <li><b>&sect;117.25(e)</b>: 10 hours rest before any FDP or reserve, measured from release, with 8 hours of uninterrupted sleep opportunity.</li>
+          <li><b>&sect;117.25(b)</b>: 30 consecutive hours free from all duty in the 168 hours before each FDP or reserve. Training counts as duty.</li>
+          <li><b>&sect;117.23</b>: 60 FDP hours in any 168, 190 FDP hours in any 672, 100 flight hours in any 672.</li>
+          <li><b>&sect;117.27</b>: no more than 3 FDPs in a row touching 0200-0559 (5 with a suitable-accommodation rest opportunity).</li>
+          <li><b>&sect;117.25(g)</b>: a deadhead that exceeds Table B needs rest at least as long as the deadhead.</li>
+          <li><b>&sect;117.21</b>: short-call reserve availability period no longer than 14 hours.</li>
+        </ul>
+        <h3>PSA/ALPA contract: flying</h3>
+        <ul>
+          <li><b>12.A.1</b>: scheduled duty no more than 13:00, or 14:00 for a continuous duty overnight. Actual duty can't be forced past 15:00 (12.A.2).</li>
+          <li><b>12.A.4</b>: no more than 5 consecutive duty days (6 in the blend).</li>
+          <li><b>12.A.5 / 12.A.6</b>: up to 4 sections per trip; no more than 3 CDOs in a row.</li>
+          <li><b>12.B</b>: 10 hours scheduled rest between duty periods, in or away from domicile.</li>
+          <li><b>12.C</b>: report 45 min before departure (30 if the section starts with a deadhead); release 15 min after block-in. Used when the schedule doesn't print report or release.</li>
+          <li><b>12.D</b>: 11 days off in a full month, with two blocks of 3 (or one of 6) and the rest in pairs.</li>
+          <li><b>25.A.3</b>: up to 7 legs per section, 3 per CDO. <b>25.A.6.a</b>: lines up to 92 block hours. <b>25.A.6.c</b>: a single CDO isn't followed by a section the same day.</li>
+          <li><b>25.G.4</b>: ready reserve up to 8 hours a day, 8 days a month.</li>
+        </ul>
+        <h3>PSA/ALPA contract: training</h3>
+        <ul>
+          <li><b>11.B.1</b>: up to 6 consecutive training days, then a day off; no more than 50 training hours a week. Training schedules aren't subject to the Section 12 flying limits.</li>
+          <li><b>11.B.2</b>: no more than 10 hours of training a day. <b>11.B.4</b>: no more than 4 sim hours a day.</li>
+          <li><b>11.B.6</b>: 9 hours rest before a checkride day (waivable).</li>
+        </ul>
+        <h3>Assumptions</h3>
+        <ul>
+          <li>Unaugmented, two-pilot crew (CRJ). Acclimated, since all domestic flying stays within 60&deg; of longitude.</li>
+          <li>Times on the schedule are local to each airport. Domicile time is used for calendar days and the 0200-0559 window.</li>
+          <li>Report and release come from the schedule's REPT and D-END lines when shown.</li>
+          <li>Split duty, augmented crews and extensions (&sect;117.15, .17, .19) aren't modeled. Contract waivers aren't assumed.</li>
+          <li>Without carry-in data, time before the first duty on the schedule is treated as free.</li>
+        </ul>
+      </div>
+    </details>
+  </section>
+
+  <footer>Planning aid only. Confirm legality with Crew Scheduling and your ALPA reps; the Captain confirms actual rest under CBA 12.B. Contract rules are from the PSA/ALPA agreement with its letters of agreement, as marked up (struck text excluded).</footer>
+</div>
+
+<script>
+/* ===== Roster legality engine: 14 CFR Part 117 + PSA/ALPA CBA ===== */
+const H = 3600e3, MIN = 60e3, DAY = 24 * H;
+
+/* ---------- Airport time zones ---------- */
+const TZ = {};
+(function () {
+  const z = {
+    "America/New_York": "ATL BOS BWI CLT DCA IAD PHL PIT ORF RIC RDU GSO GSP CAE CHS CHO ROA LYH TYS TRI CRW HTS LWB CVG DAY CMH CLE CAK DTW GRR FNT LAN MBS TVC AZO MKG JFK LGA EWR ALB BUF ROC SYR ITH ELM BGM HPN ISP SWF PVD BDL BTV PWM BGR MHT PSM ACK MVY HYA ORH MIA FLL PBI TPA MCO SFB PIE RSW JAX SRQ TLH GNV DAB MLB EYW SAV AGS CSG VLD ABY BQK ILM OAJ EWN PGV FAY AVL ABE AVP MDT IPT SBY PHF LEX SDF IND FWA SBN LAF TOL ERI MYR FLO HHH CHA SCE CKB MGW SHD PKB LBE JST AOO DUJ BFD PLN APN CMX MQT CIU",
+    "America/Chicago": "ORD MDW MSP STL MCI DFW DAL IAH HOU AUS SAT MSY MEM BNA BHM HSV MOB MSN MKE GRB ATW CID DSM OMA ICT TUL OKC LIT XNA FSM TXK SGF CMI PIA BMI MLI SPI DBQ RST FSD FAR BIS MOT GFK LFT BTR SHV MLU AEX LCH GPT JAN PNS VPS ECP DHN MGM TUP CBM GTR MEI PIB HBG ACT CLL MAF LBB AMA ABI SJT SPS GGG TYR MFE HRL CRP BRO LRD VCT EVV PAH CGI COU JLN MHK GRI LNK SUX ALO CWA EAU LSE TOP DLH BRD HIB INL BJI TVF RHI IMT UIN BLV MWA DEC",
+    "America/Denver": "DEN COS GJT ASE EGE HDN MTJ GUC DRO ABQ SAF ROW HOB SLC BOI BZN BIL MSO GTF HLN BTM JAC IDA PIH SUN TWF CPR CYS COD GCC SHR RKS LAR RIW ELP RAP FMN DIK",
+    "America/Phoenix": "PHX TUS FLG YUM PRC AZA IFP",
+    "America/Los_Angeles": "LAX SFO SJC OAK SMF SAN SNA ONT BUR LGB PSP SBA SBP FAT MRY STS ACV RDD SEA PDX GEG RNO LAS EUG MFR RDM BLI PSC YKM ALW PUW LWS EAT",
+    "America/Anchorage": "ANC FAI JNU",
+    "Pacific/Honolulu": "HNL OGG KOA LIH",
+    "America/Toronto": "YYZ YOW YUL YQB",
+    "America/Halifax": "YHZ",
+    "America/Winnipeg": "YWG",
+    "America/Edmonton": "YYC YEG",
+    "America/Vancouver": "YVR",
+    "America/Puerto_Rico": "SJU BQN PSE STT STX",
+    "America/Nassau": "NAS ELH GGT",
+    "America/Jamaica": "MBJ KIN",
+    "America/Cancun": "CUN",
+    "America/Mexico_City": "MEX GDL",
+    "America/Santo_Domingo": "PUJ SDQ STI",
+    "America/Grand_Turk": "PLS",
+    "America/Cayman": "GCM",
+    "America/Belize": "BZE",
+    "America/Costa_Rica": "SJO LIR",
+    "America/Aruba": "AUA",
+    "America/Curacao": "CUR"
+  };
+  for (const k in z) for (const a of z[k].split(" ")) TZ[a] = k;
+})();
+
+/* ---------- Time helpers ---------- */
+const _fmt = {};
+function fmtFor(tz) {
+  return _fmt[tz] || (_fmt[tz] = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", weekday: "short"
+  }));
+}
+function parts(utc, tz) {
+  const p = {};
+  for (const x of fmtFor(tz).formatToParts(new Date(utc))) p[x.type] = x.value;
+  const h = p.hour === "24" ? 0 : +p.hour;
+  return { y: +p.year, m: +p.month - 1, d: +p.day, h, mi: +p.minute, s: +p.second,
+    dow: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(p.weekday) };
+}
+function tzOffset(tz, utc) {
+  const p = parts(utc, tz);
+  return (Date.UTC(p.y, p.m, p.d, p.h, p.mi, p.s) - utc) / MIN;
+}
+function localToUtc(y, m, d, h, mi, tz) {
+  const guess = Date.UTC(y, m, d, h, mi);
+  const o1 = tzOffset(tz, guess);
+  let t = guess - o1 * MIN;
+  const o2 = tzOffset(tz, t);
+  if (o2 !== o1) t = guess - o2 * MIN;
+  return t;
+}
+const hm = (s) => ({ h: +s.slice(0, 2), m: +s.slice(2, 4) });
+const pad = (n) => String(n).padStart(2, "0");
+function hhmmOf(utc, tz) { const p = parts(utc, tz); return pad(p.h) + pad(p.mi); }
+function dur(ms) {
+  const neg = ms < 0; ms = Math.abs(Math.round(ms / MIN));
+  return (neg ? "-" : "") + Math.floor(ms / 60) + ":" + pad(ms % 60);
+}
+function dayKey(utc, tz) { const p = parts(utc, tz); return p.y * 10000 + (p.m + 1) * 100 + p.d; }
+
+/* ---------- Activity classification ---------- */
+const MON = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
+const DOW2 = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+const SIM_CODES = /^(SIM|FTD|FFS|PT|MV|LOE|LOFT|PC|CKR|SPOT|FBS|PPC|MT)\d*$/;
+const CHECK_CODES = /^(PC|PPC|CKR|MV|LOE|CHK|SPOT|MVL)\d*$/;
+const TRAIN_CODES = /^(GRS|GS|GND|CBT|TRN|TRG|CRM|IND|INDOC|EMER|EMR|DG|HAZ|REC|RCT|RQ|DIFF|SYS|ORAL|KV|BRF)\d*$/;
+function classify(code, dh) {
+  if (/^\d{1,5}[A-Z]?$/.test(code)) return dh ? "deadhead" : "flight";
+  if (code === "FAKE") return "placeholder";
+  if (/^(HTL|HOT|HOTEL)$/.test(code)) return "hotel";
+  if (/^(RDY|RR|ARS|APT|STBY|SBY|ASB)\d*$/.test(code)) return "ready";
+  if (/^(LCR|LC|LRV)\d*$/.test(code)) return "lcr";
+  if (/^(RSV|RES|SCR|SC|R)\d*$/.test(code)) return "scr";
+  if (SIM_CODES.test(code)) return "sim";
+  if (TRAIN_CODES.test(code)) return "training";
+  return dh ? "deadhead" : "other";
+}
+
+/* ---------- Parser ---------- */
+function parseRoster(text, opt = {}) {
+  const warnings = [];
+  const meta = { year: null, month: null, updMonth: null, base: null };
+  const rows = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.toUpperCase().replace(/[–—]/g, "-").replace(/\s+/g, " ").trim();
+    if (!line) continue;
+    let m;
+    if ((m = line.match(/LAST UPDATED:?\s*([A-Z]{3})[A-Z]*\.?\s+\d{1,2},?\s+(\d{4})/))) { meta.updMonth = MON[m[1]]; meta.year = +m[2]; }
+    if ((m = line.match(/^MONTH:?\s+([A-Z]{3})[A-Z]*\s+(\d{4})/))) { meta.month = MON[m[1]]; meta.year = +m[2]; continue; }
+    if ((m = line.match(/BASE\s*\/\s*EQUIP:?\s*([A-Z]{3})/))) meta.base = m[1];
+    const th = line.match(/(?:^|\s)([A-Z]{0,3}\d{3,5}[A-Z]?)\s*:\s*(\d{1,2})([A-Z]{3})\b/);
+    if (th && MON[th[3]] != null) {
+      rows.push({ t: "trip", id: th[1], day: +th[2], mon: MON[th[3]] });
+      if (meta.month == null) meta.month = MON[th[3]];
+    }
+    const br = line.match(/BSE\s*REPT:?\s*(\d{4})/);
+    if (br) rows.push({ t: "bserept", hhmm: br[1] });
+    const lg = line.match(/^(MO|TU|WE|TH|FR|SA|SU)\s+(\d{1,2})\s+(.*?)\s*\b([A-Z0-9]{3})\s*-\s*([A-Z0-9]{3})\s+(\d{4})\s+(\d{4})(?:\s+(\d{4}))?/);
+    if (lg) {
+      const toks = lg[3].split(" ").filter(Boolean);
+      const dh = toks.includes("DH");
+      const rest = toks.filter((t) => !["DH", "N", "-", "C", "Y", "*"].includes(t));
+      const code = rest.length ? rest[rest.length - 1] : (toks[toks.length - 1] || "?");
+      rows.push({ t: "leg", dow: lg[1], dom: +lg[2], dh, code, from: lg[4], to: lg[5], dep: lg[6], arr: lg[7], blk: lg[8] || null, raw: raw.trim() });
+      continue;
+    }
+    const de = line.match(/D-?END:?\s*(\d{4})\s*[LZ]?(?:.*?REPT:?\s*(\d{4}))?/);
+    if (de) rows.push({ t: "dend", end: de[1], rept: de[2] || null });
+  }
+  const legRows = rows.filter((r) => r.t === "leg");
+  if (!legRows.length) return { duties: [], warnings: ["No schedule rows found. Each row should look like: MO 12 - 5123 CLT-GSO 0800 0905 0105"], meta };
+
+  // Year / month
+  const now = new Date();
+  const baseMonth = opt.month != null ? opt.month : (meta.month != null ? meta.month : (meta.updMonth != null ? meta.updMonth : now.getMonth()));
+  const year = opt.year || meta.year || now.getFullYear();
+  meta.rosterMonth = baseMonth; meta.rosterYear = year;
+
+  // Domicile
+  let dom = (opt.domicile || "").toUpperCase();
+  if (!TZ[dom]) {
+    const cnt = {};
+    for (const r of legRows) for (const a of [r.from, r.to]) if (TZ[a]) cnt[a] = (cnt[a] || 0) + 1;
+    const auto = TZ[meta.base] ? meta.base : Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0];
+    if (opt.domicile && !TZ[dom]) warnings.push(`Unknown domicile "${opt.domicile}". Using ${auto || "CLT"} instead.`);
+    dom = auto || "CLT";
+  }
+  meta.domicile = dom;
+  const domTz = TZ[dom];
+  const unknown = new Set();
+  const tzOf = (a) => { if (TZ[a]) return TZ[a]; if (a !== "TRG") unknown.add(a); return domTz; };
+
+  // Walk rows -> duties
+  const duties = [];
+  let trip = null, pendingRept = null, cur = null, lastDom = null, curMonOffset = 0, dowMiss = 0, dowTot = 0;
+  const norm = (mon) => { let y = year, m = mon; if (m - baseMonth > 6) y--; if (baseMonth - m > 6) y++; return { y, m }; };
+  const closeDuty = (endHHMM) => {
+    if (cur && cur.legs.length) { cur.endHHMM = endHHMM || null; duties.push(cur); }
+    cur = null;
+  };
+  for (const r of rows) {
+    if (r.t === "trip") {
+      closeDuty(null);
+      const n = norm(r.mon);
+      trip = { id: r.id, y: n.y, m: n.m, day: r.day }; pendingRept = null; lastDom = null;
+    } else if (r.t === "bserept") {
+      pendingRept = r.hhmm;
+    } else if (r.t === "dend") {
+      if (cur) { closeDuty(r.end); pendingRept = r.rept; }
+    } else if (r.t === "leg") {
+      let y, m;
+      if (trip) { y = trip.y; m = trip.m; if (r.dom < trip.day) m++; }
+      else { y = year; m = baseMonth; if (lastDom != null && r.dom < lastDom - 20) curMonOffset++; m += curMonOffset; }
+      lastDom = r.dom;
+      const dt = new Date(Date.UTC(y, m, r.dom)); y = dt.getUTCFullYear(); m = dt.getUTCMonth();
+      dowTot++; if (DOW2[dt.getUTCDay()] !== r.dow) dowMiss++;
+      const kind = classify(r.code, r.dh);
+      const fTz = tzOf(r.from), tTz = tzOf(r.to);
+      const a = hm(r.dep), b = hm(r.arr);
+      const depUtc = localToUtc(y, m, r.dom, a.h, a.m, fTz);
+      let arrUtc = localToUtc(y, m, r.dom, b.h, b.m, tTz);
+      while (arrUtc < depUtc - 1) arrUtc += DAY;
+      const blkMin = r.blk ? hm(r.blk).h * 60 + hm(r.blk).m : 0;
+      if ((kind === "flight" || kind === "deadhead") && blkMin > 0 && Math.abs((arrUtc - depUtc) / MIN - blkMin) > 45)
+        warnings.push(`${r.dow} ${r.dom} ${r.code} ${r.from}-${r.to}: times don't match the ${dur(blkMin * MIN)} block. Check the airport time zones.`);
+      const leg = { ...r, kind, y, m, depUtc, arrUtc, blkMin, fromTz: fTz, toTz: tTz };
+      if (cur && cur.legs.length) {
+        const prev = cur.legs[cur.legs.length - 1];
+        if (depUtc - prev.arrUtc >= 9 * H) { closeDuty(null); }
+      }
+      if (!cur) { cur = { trip: trip ? trip.id : null, legs: [], reptHHMM: pendingRept }; pendingRept = null; }
+      cur.legs.push(leg);
+    }
+  }
+  closeDuty(null);
+  if (dowTot && dowMiss / dowTot > 0.3) warnings.push(`The weekdays on the schedule don't match ${["January","February","March","April","May","June","July","August","September","October","November","December"][baseMonth]} ${year}. Check the month and year settings.`);
+  if (unknown.size) warnings.push(`Unknown airport time zone for ${[...unknown].join(", ")}. Using ${dom} local time for these.`);
+
+  // Finish each duty
+  for (const d of duties) finishDuty(d, domTz);
+  duties.sort((a, b) => a.reportUtc - b.reportUtc);
+  duties.forEach((d, i) => (d.idx = i));
+  return { duties, warnings, meta: { ...meta, domTz } };
+}
+
+function finishDuty(d, domTz) {
+  const real = d.legs.filter((l) => l.kind !== "placeholder" && l.kind !== "hotel");
+  const has = (k) => real.some((l) => l.kind === k);
+  d.kind = has("flight") ? "flight" : has("ready") ? "ready" : has("scr") ? "scr" : has("lcr") ? "lcr"
+    : (has("sim") || has("training")) ? "training" : has("deadhead") ? "deadhead" : real.length ? "other" : "travel";
+  const first = d.legs[0], last = d.legs[d.legs.length - 1];
+  const firstReal = real[0] || first;
+  d.reportTz = first.fromTz; d.releaseTz = last.toTz;
+  // Report
+  if (d.reptHHMM) {
+    const a = hm(d.reptHHMM);
+    let t = localToUtc(first.y, first.m, first.dom, a.h, a.m, d.reportTz);
+    if (t > first.depUtc + MIN) t -= DAY;
+    if (first.depUtc - t > 14 * H) t += DAY;
+    d.reportUtc = t; d.reportSrc = "schedule";
+  } else {
+    const fl = firstReal;
+    const off = (fl.kind === "flight") ? 45 : (fl.kind === "deadhead") ? 30 : 0;
+    d.reportUtc = fl.depUtc - off * MIN;
+    d.reportSrc = off ? `${off} min before departure (CBA 12.C.1)` : "start of first activity";
+  }
+  // Release
+  if (d.endHHMM) {
+    const a = hm(d.endHHMM);
+    const p = parts(last.arrUtc, d.releaseTz);
+    let t = localToUtc(p.y, p.m, p.d, a.h, a.m, d.releaseTz);
+    if (t < last.arrUtc - H) t += DAY;
+    d.releaseUtc = t; d.releaseSrc = "schedule";
+  } else {
+    const lastReal = real[real.length - 1] || last;
+    const add = (lastReal.kind === "flight" || lastReal.kind === "deadhead") ? 15 : 0;
+    d.releaseUtc = lastReal.arrUtc + add * MIN;
+    d.releaseSrc = add ? "15 min after block-in (CBA 12.C.4)" : "end of last activity";
+  }
+  d.dutyMs = d.releaseUtc - d.reportUtc;
+  const ops = real.filter((l) => l.kind === "flight");
+  d.segments = ops.length;
+  d.flightMs = ops.reduce((s, l) => s + (l.arrUtc - l.depUtc), 0);
+  d.isFDP = ops.length > 0;
+  d.fdpEndUtc = d.isFDP ? ops[ops.length - 1].arrUtc : null;
+  d.fdpMs = d.isFDP ? d.fdpEndUtc - d.reportUtc : 0;
+  d.legCount = real.filter((l) => l.kind === "flight" || l.kind === "deadhead").length;
+  d.simMs = real.filter((l) => l.kind === "sim").reduce((s, l) => s + (l.arrUtc - l.depUtc), 0);
+  d.isCheckride = real.some((l) => CHECK_CODES.test(l.code));
+  d.countsAsDuty = d.kind !== "lcr";
+  d.isTraining = d.kind === "training";
+  d.flying = ["flight", "deadhead", "ready", "scr", "other"].includes(d.kind);
+  // CDO: spans two domicile days with a long ground break inside
+  d.cdo = false;
+  if (d.isFDP && dayKey(d.reportUtc, domTz) !== dayKey(d.releaseUtc, domTz)) {
+    for (let i = 1; i < real.length; i++) if (real[i].depUtc - real[i - 1].arrUtc >= 3 * H) d.cdo = true;
+  }
+  d.days = daysCovered(d.reportUtc, d.releaseUtc, domTz);
+}
+function daysCovered(a, b, tz) {
+  const out = []; let k = dayKey(a, tz); const end = dayKey(b - 1, tz);
+  let p = parts(a, tz), t = Date.UTC(p.y, p.m, p.d);
+  while (true) { const dt = new Date(t); const key = dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate(); out.push(key); if (key >= end || out.length > 5) break; t += DAY; }
+  return out;
+}
+
+/* ---------- Part 117 tables ---------- */
+const TABLE_B = [ // [startHour, endHour, [1..7+ segments]]
+  [0, 4, [9, 9, 9, 9, 9, 9, 9]], [4, 5, [10, 10, 10, 10, 9, 9, 9]], [5, 6, [12, 12, 12, 12, 11.5, 11, 10.5]],
+  [6, 7, [13, 13, 12, 12, 11.5, 11, 10.5]], [7, 12, [14, 14, 13, 13, 12.5, 12, 11.5]], [12, 13, [13, 13, 13, 13, 12.5, 12, 11.5]],
+  [13, 17, [12, 12, 12, 12, 11.5, 11, 10.5]], [17, 22, [12, 12, 11, 11, 10, 9, 9]], [22, 23, [11, 11, 10, 10, 9, 9, 9]], [23, 24, [10, 10, 10, 9, 9, 9, 9]]
+];
+function tableB(hour, segs) { const row = TABLE_B.find((r) => hour >= r[0] && hour < r[1]); return row[2][Math.min(Math.max(segs, 1), 7) - 1]; }
+function tableA(hour) { return (hour < 5 || hour >= 20) ? 8 : 9; }
+function tableBRowLabel(hour) { const r = TABLE_B.find((x) => hour >= x[0] && hour < x[1]); return pad(r[0]) + "00-" + pad(r[1] - 1) + "59"; }
+
+/* ---------- Rules ---------- */
+function chk(list, sev, src, rule, text, extra) { list.push({ sev, src, rule, text, ...(extra || {}) }); }
+
+function evaluate(parsed, carry = {}) {
+  const { duties, meta } = parsed;
+  const domTz = meta.domTz;
+  const month = [];
+  if (!duties.length) return { duties, month, summary: { fail: 0, warn: 0 } };
+  const lastRelease = carry.lastRelease || null;
+  const rosterStart = duties[0].reportUtc;
+  const busy = duties.filter((d) => d.countsAsDuty).map((d) => [d.reportUtc, d.releaseUtc]);
+  if (lastRelease) busy.unshift([-Infinity, lastRelease]);
+
+  duties.forEach((d, i) => {
+    const c = (d.checks = []);
+    const prev = duties.slice(0, i).reverse().find((x) => x.countsAsDuty);
+    const prevRel = prev ? prev.releaseUtc : lastRelease;
+    d.restBefore = prevRel != null ? d.reportUtc - prevRel : null;
+    const repLocal = parts(d.reportUtc, d.reportTz);
+    d.reportHourLocal = repLocal.h;
+    const needs117Rest = d.isFDP || d.kind === "scr" || d.kind === "ready";
+
+    // --- 117.25(e) rest
+    if (needs117Rest) {
+      if (d.restBefore == null) chk(c, "info", "far", "§117.25(e)", "Rest before this duty can't be checked: no earlier duty on the schedule. Add your last release under Carry-in.");
+      else if (d.restBefore < 10 * H) chk(c, "fail", "far", "§117.25(e)", `Only ${dur(d.restBefore)} rest before report. Part 117 requires 10:00 consecutive rest, measured from release, with 8 hours of uninterrupted sleep opportunity.`, { value: d.restBefore, limit: 10 * H });
+      else if (d.restBefore < 11 * H) chk(c, "warn", "far", "§117.25(e)", `${dur(d.restBefore)} rest meets the 10:00 minimum, but it's tight. If hotel transport and wind-down leave less than 8 hours of sleep opportunity, you must tell Crew Scheduling (§117.25(f)).`);
+      else chk(c, "ok", "far", "§117.25(e)", `${dur(d.restBefore)} rest before report (minimum 10:00).`);
+    }
+    // --- CBA 12.B rest (flying schedules)
+    if (d.flying && !d.isTraining && d.restBefore != null && prev && !prev.isTraining) {
+      const inDom = d.reportTz === domTz && prev.legs[prev.legs.length - 1].to === meta.domicile;
+      if (d.restBefore < 10 * H) chk(c, "fail", "cba", "CBA 12.B", `${dur(d.restBefore)} scheduled rest ${inDom ? "in" : "away from"} domicile. The contract requires at least 10:00 between duty periods.`);
+      else chk(c, "ok", "cba", "CBA 12.B", `${dur(d.restBefore)} scheduled rest (minimum 10:00).`);
+    }
+    // --- Checkride rest 11.B.6
+    if (d.isCheckride && d.restBefore != null) {
+      if (d.restBefore < 9 * H) chk(c, "fail", "cba", "CBA 11.B.6", `Checkride day with only ${dur(d.restBefore)} rest. You must be scheduled 9:00 rest before a checkride day (you may waive it).`);
+      else chk(c, "ok", "cba", "CBA 11.B.6", `${dur(d.restBefore)} rest before checkride day (minimum 9:00).`);
+    }
+
+    // --- FDP limits
+    if (d.isFDP) {
+      const lim = tableB(repLocal.h, d.segments) * H;
+      d.fdpLimit = lim;
+      const row = tableBRowLabel(repLocal.h);
+      if (d.fdpMs > lim) chk(c, "fail", "far", "§117.13 Table B", `FDP ${dur(d.fdpMs)} exceeds the ${dur(lim)} limit for a ${pad(repLocal.h)}${pad(repLocal.mi)} report with ${d.segments} segment${d.segments > 1 ? "s" : ""}.`, { value: d.fdpMs, limit: lim });
+      else if (lim - d.fdpMs < 30 * MIN) chk(c, "warn", "far", "§117.13 Table B", `FDP ${dur(d.fdpMs)} is within 30 min of the ${dur(lim)} limit (report ${pad(repLocal.h)}${pad(repLocal.mi)}, ${d.segments} seg). A delay before takeoff would need a §117.19 extension.`, { value: d.fdpMs, limit: lim });
+      else chk(c, "ok", "far", "§117.13 Table B", `FDP ${dur(d.fdpMs)} of ${dur(lim)} allowed (report row ${row}, ${d.segments} seg).`, { value: d.fdpMs, limit: lim });
+      const ftl = tableA(repLocal.h) * H;
+      d.flightLimit = ftl;
+      if (d.flightMs > ftl) chk(c, "fail", "far", "§117.11 Table A", `Flight time ${dur(d.flightMs)} exceeds ${dur(ftl)} for this report time.`);
+      else chk(c, "ok", "far", "§117.11 Table A", `Flight time ${dur(d.flightMs)} of ${dur(ftl)} allowed.`);
+    }
+    // --- 117.25(g) deadhead exceeding Table B
+    if (d.kind === "deadhead") {
+      const lim = tableB(repLocal.h, 1) * H;
+      if (d.dutyMs > lim) {
+        const next = duties.slice(i + 1).find((x) => x.isFDP);
+        if (next) {
+          const rest = next.reportUtc - d.releaseUtc;
+          if (rest < Math.max(d.dutyMs, 10 * H)) chk(c, "fail", "far", "§117.25(g)", `This deadhead (${dur(d.dutyMs)}) runs past the Table B limit, so you need rest at least as long as the deadhead before the next FDP. Scheduled rest is ${dur(rest)}.`);
+          else chk(c, "ok", "far", "§117.25(g)", `Deadhead exceeds Table B; following rest of ${dur(rest)} covers it.`);
+        }
+      }
+    }
+    // --- Reserve
+    if (d.kind === "scr") {
+      const rap = d.legs.filter((l) => l.kind === "scr").reduce((s, l) => s + (l.arrUtc - l.depUtc), 0);
+      if (rap > 14 * H) chk(c, "fail", "far", "§117.21(c)(1)", `Reserve availability period of ${dur(rap)} exceeds 14:00.`);
+      else chk(c, "ok", "far", "§117.21(c)(1)", `Reserve availability period ${dur(rap)} (max 14:00).`);
+    }
+    if (d.kind === "ready" || d.legs.some((l) => l.kind === "ready")) {
+      const rr = d.legs.filter((l) => l.kind === "ready").reduce((s, l) => s + (l.arrUtc - l.depUtc), 0);
+      if (rr > 8 * H) chk(c, "fail", "cba", "CBA 25.G.4.a", `Ready reserve of ${dur(rr)} exceeds the 8:00 limit.`);
+      else chk(c, "ok", "cba", "CBA 25.G.4.a", `Ready reserve ${dur(rr)} (max 8:00).`);
+    }
+
+    // --- CBA duty limits (flying schedules)
+    if (d.flying && !d.isTraining && d.kind !== "scr") {
+      const lim = (d.cdo ? 14 : 13) * H;
+      if (d.dutyMs > lim) chk(c, "fail", "cba", "CBA 12.A.1", `Scheduled duty ${dur(d.dutyMs)} exceeds ${d.cdo ? "14:00 for a continuous duty overnight" : "13:00"}.`);
+      else chk(c, "ok", "cba", "CBA 12.A.1", `Scheduled duty ${dur(d.dutyMs)} of ${dur(lim)}${d.cdo ? " (CDO)" : ""}. Actual duty can run to 15:00 (12.A.2).`);
+      const maxLegs = d.cdo ? 3 : 7;
+      if (d.legCount > maxLegs) chk(c, "fail", "cba", "CBA 25.A.3", `${d.legCount} legs scheduled; a ${d.cdo ? "CDO" : "section"} may have at most ${maxLegs}.`);
+    }
+    // --- Training day limits
+    if (d.isTraining) {
+      if (d.dutyMs > 10 * H) chk(c, "fail", "cba", "CBA 11.B.2", `Training day of ${dur(d.dutyMs)}. You can't be required to attend training more than 10:00 a day.`);
+      else chk(c, "ok", "cba", "CBA 11.B.2", `Training day ${dur(d.dutyMs)} (max 10:00).`);
+      if (d.simMs > 4 * H) chk(c, "fail", "cba", "CBA 11.B.4.a", `${dur(d.simMs)} of simulator scheduled. The limit is 4:00 a day (waivable, never compelled).`);
+    }
+
+    // --- 117.25(b) 30 hours free in prior 168
+    if (needs117Rest) {
+      const S = d.reportUtc, W0 = S - 168 * H;
+      const iv = busy.filter(([a, b]) => b > W0 && a < S && !(a === d.reportUtc && b === d.releaseUtc)).map(([a, b]) => [Math.max(a, W0), Math.min(b, S)]).sort((x, y) => x[0] - y[0]);
+      let t = W0, best = 0;
+      for (const [a, b] of iv) { best = Math.max(best, a - t); t = Math.max(t, b); }
+      best = Math.max(best, S - t);
+      const assumed = !lastRelease && W0 < rosterStart;
+      d.free168 = best;
+      if (best < 30 * H) chk(c, "fail", "far", "§117.25(b)", `Longest break in the 168 hours before report is ${dur(best)}. You need 30 consecutive hours free from all duty.`);
+      else chk(c, assumed ? "info" : "ok", "far", "§117.25(b)", `Longest break in the prior 168 hours: ${dur(best)} (need 30:00).${assumed ? " Assumes you were off before this schedule starts." : ""}`);
+    }
+  });
+
+  // --- Cumulative FDP and flight time
+  const fdps = duties.filter((d) => d.isFDP);
+  const opLegs = duties.flatMap((d) => d.legs.filter((l) => l.kind === "flight"));
+  const sumOverlap = (ivs, a, b) => ivs.reduce((s, [x, y]) => s + Math.max(0, Math.min(y, b) - Math.max(x, a)), 0);
+  const fdpIv = fdps.map((d) => [d.reportUtc, d.fdpEndUtc]);
+  const legIv = opLegs.map((l) => [l.depUtc, l.arrUtc]);
+  const pre = carry.lastRelease || rosterStart;
+  const fdp7 = (carry.fdp7 || 0) * H, flt28 = (carry.flt28 || 0) * H, fdp28 = (carry.fdp28 || 0) * H;
+  for (const d of fdps) {
+    const E = d.fdpEndUtc;
+    const f168 = sumOverlap(fdpIv, E - 168 * H, E) + (E - 168 * H < pre ? fdp7 : 0);
+    const f672 = sumOverlap(fdpIv, E - 672 * H, E) + (E - 672 * H < pre ? fdp28 : 0);
+    const t672 = sumOverlap(legIv, E - 672 * H, E) + (E - 672 * H < pre ? flt28 : 0);
+    d.cum = { f168, f672, t672 };
+    if (f168 > 60 * H) chk(d.checks, "fail", "far", "§117.23(c)(1)", `${dur(f168)} FDP in the 168 hours ending with this FDP (limit 60:00).`);
+    else chk(d.checks, "ok", "far", "§117.23(c)(1)", `${dur(f168)} FDP in the last 168 hours (limit 60:00).`);
+    if (f672 > 190 * H) chk(d.checks, "fail", "far", "§117.23(c)(2)", `${dur(f672)} FDP in the last 672 hours (limit 190:00).`);
+    if (t672 > 100 * H) chk(d.checks, "fail", "far", "§117.23(b)(1)", `${dur(t672)} flight time in the last 672 hours (limit 100:00).`);
+    else chk(d.checks, "ok", "far", "§117.23(b)(1)", `${dur(t672)} flight time in the last 672 hours (limit 100:00).`);
+  }
+  // --- 117.27 consecutive WOCL FDPs
+  let run = 0;
+  for (const d of fdps) {
+    let inf = false;
+    for (let t = d.reportUtc; t < d.fdpEndUtc; t += 15 * MIN) { const h = parts(t, domTz).h; if (h >= 2 && h < 6) { inf = true; break; } }
+    d.wocl = inf;
+    run = inf ? run + 1 : 0;
+    if (inf && run > 3) chk(d.checks, run > 5 ? "fail" : "warn", "far", "§117.27", `This is FDP #${run} in a row that touches 0200-0559. More than 3 is only legal with a 2-hour rest opportunity in a suitable accommodation during each FDP${run > 5 ? "; more than 5 is never allowed" : ""}.`);
+  }
+
+  // --- Calendar-day analysis (domicile local)
+  const y = meta.rosterYear, mo = meta.rosterMonth;
+  const nDays = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
+  const keyOf = (d) => y * 10000 + (mo + 1) * 100 + d;
+  const dayInfo = {};
+  for (const d of duties) for (const k of d.days) { (dayInfo[k] = dayInfo[k] || []).push(d); }
+  const isWork = (k) => (dayInfo[k] || []).length > 0;
+  const workKind = (k) => { const ds = dayInfo[k] || []; if (!ds.length) return null; if (ds.some((d) => d.flying && !d.isTraining)) return "fly"; if (ds.some((d) => d.isTraining)) return "train"; return "other"; };
+  // consecutive duty days (across all keys present)
+  const allKeys = [...new Set(duties.flatMap((d) => d.days))].sort((a, b) => a - b);
+  const toDate = (k) => Date.UTC(Math.floor(k / 10000), Math.floor(k / 100) % 100 - 1, k % 100);
+  const runs = [];
+  for (const k of allKeys) {
+    const lastRun = runs[runs.length - 1];
+    if (lastRun && toDate(k) - toDate(lastRun[lastRun.length - 1]) === DAY) lastRun.push(k); else runs.push([k]);
+  }
+  const fmtKey = (k) => { const dt = new Date(toDate(k)); return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dt.getUTCDay()] + " " + dt.getUTCDate() + " " + ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][dt.getUTCMonth()]; };
+  let worstFly = 0, worstTrain = 0;
+  for (const r of runs) {
+    const kinds = r.map(workKind);
+    const label = `${fmtKey(r[0])} to ${fmtKey(r[r.length - 1])}`;
+    if (kinds.includes("fly")) {
+      const blend = r.some((k) => k % 100 <= 4 && Math.floor(k / 100) % 100 === mo + 1);
+      const lim = blend ? 6 : 5;
+      worstFly = Math.max(worstFly, r.length);
+      if (r.length > lim) chk(month, "fail", "cba", "CBA 12.A.4", `${r.length} consecutive duty days (${label}). Limit is 5${blend ? ", or 6 when the blend is involved" : ""}.`);
+    } else if (kinds.includes("train")) {
+      worstTrain = Math.max(worstTrain, r.length);
+      if (r.length > 6) chk(month, "fail", "cba", "CBA 11.B.1", `${r.length} consecutive training days (${label}). Training is limited to 6 days in a row, then a day off.`);
+    }
+  }
+  if (worstFly) chk(month, worstFly > 5 ? "warn" : "ok", "cba", "CBA 12.A.4", `Longest run of flying duty days: ${worstFly} (limit 5).`);
+  if (worstTrain) chk(month, worstTrain > 6 ? "fail" : "ok", "cba", "CBA 11.B.1", `Longest run of training days: ${worstTrain} (limit 6, then a day off at the training site).`);
+
+  // Training hours per 7 days
+  const trainIv = duties.filter((d) => d.isTraining).map((d) => [d.reportUtc, d.releaseUtc]);
+  if (trainIv.length) {
+    let worst = 0, worstEnd = null;
+    for (const [, b] of trainIv) { const s = sumOverlap(trainIv, b - 7 * DAY, b); if (s > worst) { worst = s; worstEnd = b; } }
+    if (worst > 50 * H) chk(month, "fail", "cba", "CBA 11.B.1", `${dur(worst)} of training in the 7 days ending ${fmtKey(dayKey(worstEnd, domTz))}. The limit is 50 hours a week.`);
+    else chk(month, "ok", "cba", "CBA 11.B.1", `Most training in any 7 days: ${dur(worst)} (limit 50:00).`);
+  }
+  // Trip sections
+  const trips = {};
+  for (const d of duties) if (d.trip) (trips[d.trip] = trips[d.trip] || []).push(d);
+  for (const id in trips) {
+    const ds = trips[id];
+    if (ds.every((d) => d.isTraining || d.kind === "travel")) continue;
+    const secs = ds.filter((d) => d.flying).length;
+    if (secs > 4) chk(month, "fail", "cba", "CBA 12.A.5", `Trip ${id} has ${secs} sections. Trips may contain up to 4.`);
+  }
+  // CDOs
+  let cdoRun = 0;
+  duties.forEach((d, i) => {
+    if (!d.isFDP) return;
+    cdoRun = d.cdo ? cdoRun + 1 : 0;
+    if (cdoRun > 3) chk(d.checks, "fail", "cba", "CBA 12.A.6", `This is the ${cdoRun}th continuous duty overnight in a row (limit 3).`);
+    if (d.cdo) {
+      const nx = duties[i + 1];
+      if (nx && cdoRun === 1 && !(duties[i + 1] && duties[i + 1].cdo) && dayKey(nx.reportUtc, domTz) === dayKey(d.releaseUtc, domTz))
+        chk(d.checks, "fail", "cba", "CBA 25.A.6.c", "A single CDO can't be followed by a section that starts the same day.");
+    }
+  });
+  // Ready reserve days
+  const rrDays = duties.filter((d) => d.legs.some((l) => l.kind === "ready"));
+  if (rrDays.length > 8) chk(month, "fail", "cba", "CBA 25.G.4.j", `${rrDays.length} ready reserve days this month (limit 8).`);
+  // Block hours
+  const blockMonth = opLegs.filter((l) => l.m === mo).reduce((s, l) => s + (l.arrUtc - l.depUtc), 0);
+  if (opLegs.length) {
+    if (blockMonth > 92 * H) chk(month, "warn", "cba", "CBA 25.A.6.a", `${dur(blockMonth)} block this month. Flying schedules are built to at most 92 block hours (open time and trades can add more).`);
+    else chk(month, "ok", "cba", "CBA 25.A.6.a", `${dur(blockMonth)} block hours this month (lines are built to 92:00 max).`);
+  }
+  // Days off
+  const offDays = [];
+  for (let d = 1; d <= nDays; d++) if (!isWork(keyOf(d))) offDays.push(d);
+  const anyTraining = duties.some((d) => d.isTraining);
+  const blocks = [];
+  for (const d of offDays) { const b = blocks[blocks.length - 1]; if (b && b[b.length - 1] === d - 1) b.push(d); else blocks.push([d]); }
+  const dayOffSummary = blocks.map((b) => b.length === 1 ? `${b[0]}` : `${b[0]}-${b[b.length - 1]}`).join(", ");
+  if (anyTraining) {
+    chk(month, "info", "cba", "CBA 12.D.1", `${offDays.length} days off (${dayOffSummary || "none"}). Training counts as unavailable for flight duty (2.SS), so the 11-day minimum is prorated this month.`);
+  } else {
+    if (offDays.length < 11) chk(month, "fail", "cba", "CBA 12.D.1", `${offDays.length} days off this month. A full month requires at least 11 (prorated if you're unavailable part of the month).`);
+    else chk(month, "ok", "cba", "CBA 12.D.1", `${offDays.length} days off (minimum 11).`);
+    const threes = blocks.filter((b) => b.length >= 3).length, six = blocks.some((b) => b.length >= 6);
+    if (!(threes >= 2 || six)) chk(month, "fail", "cba", "CBA 12.D.2", `Days off must include two blocks of 3+ days (or one block of 6+). Blocks this month: ${dayOffSummary || "none"}.`);
+    const singles = blocks.filter((b) => b.length === 1 && !(b[0] <= 4 || b[0] === nDays));
+    if (singles.length) chk(month, "warn", "cba", "CBA 12.D.2", `Single day off on the ${singles.map((b) => b[0]).join(", ")}. Remaining days off should be in blocks of 2, except in the blend or on the last day of the month.`);
+  }
+  month.offDays = offDays; month.nDays = nDays;
+
+  // Summary
+  const all = [...duties.flatMap((d) => d.checks), ...month];
+  const summary = {
+    fail: all.filter((x) => x.sev === "fail").length,
+    warn: all.filter((x) => x.sev === "warn").length,
+    farFail: all.filter((x) => x.sev === "fail" && x.src === "far").length,
+    cbaFail: all.filter((x) => x.sev === "fail" && x.src === "cba").length,
+    fdpCount: fdps.length, trainCount: duties.filter((d) => d.isTraining).length
+  };
+  duties.forEach((d) => { d.worst = d.checks.some((x) => x.sev === "fail") ? "fail" : d.checks.some((x) => x.sev === "warn") ? "warn" : "ok"; });
+  return { duties, month, summary, offDays, nDays, blocks };
+}
+
+if (typeof module !== "undefined") module.exports = { parseRoster, evaluate, parts, dur, TZ, localToUtc, dayKey };
+
+</script>
+<script>
+const SAMPLE = "MONTH NOV 2026\n1234 : 03NOV  BSE REPT: 0515L\nTU 03 - 5101 CLT-GSO 0600 0655 0055\nTU 03 - 5102 GSO-CLT 0735 0830 0055\nTU 03 - 5103 CLT-ORD 0930 1045 0215\nTU 03 - 5104 ORD-CLT 1130 1440 0210\nTU 03 - 5105 CLT-DAY 1600 1730 0130\nTU 03 - 5106 DAY-CLT 1815 1945 0130\nD-END: 2000L REPT: 0530L\nWE 04 - 5201 CLT-MCI 0615 0745 0230\nWE 04 - 5202 MCI-CLT 0830 1145 0215\nD-END: 1200L\n2345 : 05NOV\nTH 05 DH 5300 CLT-PHL 2100 2240 0140\nTH 05 - 5301 PHL-ORF 2330 0030 0100\nFR 06 - 5302 ORF-PHL 0530 0645 0115\nD-END: 0700L\n";
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MON3 = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+const KIND_LABEL = { flight: "Flight duty", training: "Training", deadhead: "Deadhead", travel: "Travel / hotel", scr: "Short-call reserve", lcr: "Long-call reserve", ready: "Ready reserve", other: "Duty" };
+const KIND_VAR = { flight: "--fly", training: "--train", deadhead: "--travel", travel: "--travel", scr: "--rsv", lcr: "--rsv", ready: "--rsv", other: "--travel" };
+
+function store(k, v) { try { localStorage.setItem("r117." + k, JSON.stringify(v)); } catch (e) {} }
+function load(k, d) { try { const v = localStorage.getItem("r117." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
+
+/* ---------- Tabs ---------- */
+function showTab(id) {
+  document.querySelectorAll(".tab").forEach((t) => { const on = t.id === id; t.setAttribute("aria-selected", on); $("#" + t.dataset.panel).hidden = !on; });
+}
+document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.id)));
+
+/* ---------- Settings ---------- */
+const sMonth = $("#sMonth");
+MONTHS.forEach((m, i) => sMonth.insertAdjacentHTML("beforeend", `<option value="${i}">${m}</option>`));
+const SETTINGS = ["sMonth", "sYear", "sDom", "cRel", "cF7", "cF28", "cT28"];
+const savedSettings = load("settings", {});
+SETTINGS.forEach((id) => { if (savedSettings[id] != null) $("#" + id).value = savedSettings[id]; $("#" + id).addEventListener("change", () => { saveSettings(); analyze(); }); });
+function saveSettings() { const o = {}; SETTINGS.forEach((id) => (o[id] = $("#" + id).value)); store("settings", o); }
+
+/* ---------- Text ---------- */
+const ta = $("#rosterText");
+ta.value = load("text", null) ?? SAMPLE;
+let tmr;
+ta.addEventListener("input", () => { clearTimeout(tmr); tmr = setTimeout(() => { store("text", ta.value); analyze(); }, 450); });
+$("#runBtn").addEventListener("click", () => { store("text", ta.value); analyze(true); });
+$("#exampleBtn").addEventListener("click", () => { ta.value = SAMPLE; store("text", ta.value); analyze(true); });
+$("#clearBtn").addEventListener("click", () => { ta.value = ""; store("text", ""); analyze(); ta.focus(); });
+
+/* ---------- Analysis + render ---------- */
+let last = null, filterMode = "all";
+function analyze(scroll) {
+  const opt = {};
+  if (sMonth.value !== "") opt.month = +sMonth.value;
+  if ($("#sYear").value) opt.year = +$("#sYear").value;
+  if ($("#sDom").value.trim()) opt.domicile = $("#sDom").value.trim().toUpperCase();
+  const parsed = parseRoster(ta.value, opt);
+  const carry = {};
+  if ($("#cRel").value && parsed.meta.domTz) {
+    const [d, t] = $("#cRel").value.split("T"); const [Y, M, D] = d.split("-").map(Number); const [h, mi] = t.split(":").map(Number);
+    carry.lastRelease = localToUtc(Y, M - 1, D, h, mi, parsed.meta.domTz);
+  }
+  carry.fdp7 = +$("#cF7").value || 0; carry.fdp28 = +$("#cF28").value || 0; carry.flt28 = +$("#cT28").value || 0;
+  const res = evaluate(parsed, carry);
+  last = { parsed, res };
+  render(parsed, res);
+  $("#textNote").textContent = parsed.duties.length ? `${parsed.duties.length} duty periods read` : "";
+  if (scroll) $("#verdictCard").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function sevIcon(s) { return { fail: "!", warn: "!", ok: "✓", info: "i" }[s]; }
+function checkLi(c) {
+  return `<li><span class="ico ${c.sev}" aria-label="${c.sev}">${sevIcon(c.sev)}</span><div><span class="rule ${c.src}">${esc(c.rule)}</span>${esc(c.text)}</div></li>`;
+}
+function hhmm(utc, tz) { const p = parts(utc, tz); return String(p.h).padStart(2, "0") + String(p.mi).padStart(2, "0"); }
+
+function render(parsed, res) {
+  const { duties, meta, warnings } = parsed;
+  const S = res.summary;
+  // Verdict
+  const vc = $("#verdictCard");
+  if (!duties.length) {
+    vc.innerHTML = `<div class="verdict warn"><div class="badge">No data</div><div><h2>Add your schedule to check it</h2><p>${esc(warnings[0] || "Upload a screenshot or PDF, or paste the schedule text.")}</p></div></div>`;
+    ["#calCard", "#monthCard", "#dutySec", "#chartCard"].forEach((s) => ($(s).hidden = true));
+    return;
+  }
+  ["#calCard", "#monthCard", "#dutySec"].forEach((s) => ($(s).hidden = false));
+  const cls = S.fail ? "fail" : S.warn ? "warn" : "ok";
+  const mName = MONTHS[meta.rosterMonth] + " " + meta.rosterYear;
+  let head, sub;
+  if (S.fail) {
+    const bits = [];
+    if (S.farFail) bits.push(`${S.farFail} Part 117 problem${S.farFail > 1 ? "s" : ""}`);
+    if (S.cbaFail) bits.push(`${S.cbaFail} contract problem${S.cbaFail > 1 ? "s" : ""}`);
+    head = bits.join(" and "); sub = "This schedule can't be flown as written without a change or a waiver. Details are marked in red below.";
+  } else if (S.warn) {
+    head = "Legal, with items to watch"; sub = "Nothing breaks Part 117 or the contract, but some duties run close to a limit.";
+  } else {
+    head = "Legal under Part 117 and the contract"; sub = "Every duty period, rest period and cumulative limit checks out.";
+  }
+  const fdpNote = S.fdpCount ? `${S.fdpCount} flight duty period${S.fdpCount > 1 ? "s" : ""}` : "No flight duty periods (Part 117 FDP limits don't apply to ground training)";
+  vc.innerHTML = `<div class="verdict ${cls}"><div class="badge">${cls === "ok" ? "Legal" : cls === "warn" ? "Watch" : "Not legal"}</div>
+    <div><div class="label">${esc(mName)} &middot; domicile ${esc(meta.domicile)}</div><h2>${esc(head)}</h2><p>${esc(sub)}</p>
+    <div class="chips"><span class="chip"><b>${duties.length}</b> duty periods</span><span class="chip">${esc(fdpNote)}</span>${S.trainCount ? `<span class="chip"><b>${S.trainCount}</b> training days</span>` : ""}<span class="chip"><b>${res.offDays.length}</b> days off</span></div>
+    ${warnings.length ? `<div class="warnings"><strong>Check these before relying on the result</strong><ul>${warnings.map((w) => `<li>${esc(w)}</li>`).join("")}</ul></div>` : ""}</div></div>`;
+
+  // Calendar strip
+  const tz = meta.domTz, y = meta.rosterYear, mo = meta.rosterMonth;
+  const cal = $("#cal"); let html = "";
+  for (let d = 1; d <= res.nDays; d++) {
+    const key = y * 10000 + (mo + 1) * 100 + d;
+    const ds = duties.filter((x) => x.days.includes(key));
+    const dow = new Date(Date.UTC(y, mo, d)).getUTCDay();
+    const dayStart = localToUtc(y, mo, d, 0, 0, tz), dayEnd = localToUtc(y, mo, d + 1, 0, 0, tz);
+    const span = dayEnd - dayStart;
+    let bars = "";
+    for (const x of ds) {
+      const a = Math.max(x.reportUtc, dayStart), b = Math.min(x.releaseUtc, dayEnd);
+      bars += `<span class="cal-bar k-${x.kind}" style="top:${((a - dayStart) / span * 100).toFixed(2)}%;height:${Math.max(2.5, (b - a) / span * 100).toFixed(2)}%"></span>`;
+    }
+    const sev = ds.some((x) => x.worst === "fail") ? "fail" : ds.some((x) => x.worst === "warn") ? "warn" : ds.length ? "ok" : "";
+    const title = ds.length ? ds.map((x) => `${KIND_LABEL[x.kind]} ${hhmm(x.reportUtc, x.reportTz)}-${hhmm(x.releaseUtc, x.releaseTz)}`).join(", ") : "Day off";
+    html += `<button class="cal-day ${ds.length ? "has" : "off"} ${dow === 0 || dow === 6 ? "wknd" : ""}" data-duty="${ds.length ? ds[0].idx : ""}" title="${esc(MONTHS[mo].slice(0,3) + " " + d + ": " + title)}" ${ds.length ? "" : "tabindex=-1"}>
+      <span class="cal-sev ${sev}"></span><span class="cal-track">${bars}</span><span class="cal-num">${d}<span>${"SMTWTFS"[dow]}</span></span></button>`;
+  }
+  cal.innerHTML = html;
+  $("#calNote").textContent = `${res.offDays.length} of ${res.nDays} days free of duty`;
+  cal.querySelectorAll(".cal-day.has").forEach((b) => b.addEventListener("click", () => {
+    if (filterMode !== "all") setFilter("all");
+    const el = $("#duty-" + b.dataset.duty); if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1400);
+  }));
+
+  // Month checks
+  const order = { fail: 0, warn: 1, info: 2, ok: 3 };
+  const mc = [...res.month].sort((a, b) => order[a.sev] - order[b.sev]);
+  $("#monthChecks").innerHTML = mc.length ? mc.map(checkLi).join("") : `<li class="note">No schedule-wide rules apply.</li>`;
+
+  // Duties
+  renderDuties();
+  // Charts
+  renderCharts(parsed, res);
+}
+
+function renderDuties() {
+  const { parsed, res } = last; const { duties, meta } = parsed;
+  const order = { fail: 0, warn: 1, info: 2, ok: 3 };
+  const list = duties.filter((d) => filterMode === "all" || d.worst !== "ok");
+  if (!list.length) { $("#duties").innerHTML = `<div class="card empty">No problems or cautions. Every duty period is legal.</div>`; return; }
+  $("#duties").innerHTML = list.map((d) => {
+    const p = parts(d.reportUtc, meta.domTz);
+    const dow = ["SU","MO","TU","WE","TH","FR","SA"][p.dow];
+    const real = d.legs.filter((l) => l.kind !== "placeholder" && l.kind !== "hotel");
+    const legsForRoute = real.length ? real : d.legs;
+    const route = [legsForRoute[0].from, ...legsForRoute.map((l) => l.to)].filter((a, i, arr) => i === 0 || a !== arr[i - 1]);
+    const codes = [...new Set(real.map((l) => l.code))].filter((c) => !/^\d/.test(c));
+    const metric = (label, val, extra = "") => `<div><dt>${label}</dt><dd>${val}${extra}</dd></div>`;
+    const meter = (v, lim) => { const pct = Math.min(100, v / lim * 100); const col = v > lim ? "var(--fail)" : lim - v < 30 * 60e3 ? "var(--warn)" : "var(--ok)"; return `<div class="meter" aria-hidden="true"><i style="width:${pct}%;background:${col}"></i></div>`; };
+    let m = metric("Report", `${hhmm(d.reportUtc, d.reportTz)}<small>L ${esc((real[0] || d.legs[0]).from)}</small>`)
+      + metric("Release", `${hhmm(d.releaseUtc, d.releaseTz)}<small>L ${esc((real[real.length - 1] || d.legs[d.legs.length - 1]).to)}</small>`)
+      + metric("Duty", dur(d.dutyMs), d.flying && !d.isTraining && d.kind !== "scr" ? `<small> / ${d.cdo ? "14:00" : "13:00"}</small>${meter(d.dutyMs, (d.cdo ? 14 : 13) * 3600e3)}` : d.isTraining ? `<small> / 10:00</small>${meter(d.dutyMs, 36e6)}` : "");
+    if (d.isFDP) m += metric("FDP", dur(d.fdpMs), `<small> / ${dur(d.fdpLimit)}</small>${meter(d.fdpMs, d.fdpLimit)}`) + metric("Flight time", dur(d.flightMs), `<small> / ${dur(d.flightLimit)}</small>`) + metric("Segments", d.segments);
+    m += metric("Rest before", d.restBefore == null ? "&mdash;" : dur(d.restBefore));
+    const shown = d.checks.filter((c) => c.sev !== "ok").sort((a, b) => order[a.sev] - order[b.sev]);
+    const okCount = d.checks.filter((c) => c.sev === "ok").length;
+    const legRows = d.legs.map((l) => `<tr><td>${l.dow} ${String(l.dom).padStart(2, "0")}</td><td>${l.dh ? "DH" : ""}</td><td>${esc(l.code)}</td><td>${esc(l.from)}-${esc(l.to)}</td><td>${esc(l.dep)}</td><td>${esc(l.arr)}</td><td>${l.kind === "flight" || l.kind === "deadhead" ? dur(l.arrUtc - l.depUtc) : ""}</td><td>${esc({ flight: "operating", deadhead: "deadhead", placeholder: "placeholder (not counted)", hotel: "hotel", training: "training", sim: "simulator", scr: "short-call", lcr: "long-call", ready: "ready reserve", other: "duty" }[l.kind])}</td></tr>`).join("");
+    return `<article class="duty sev-${d.worst}" id="duty-${d.idx}">
+      <div class="d-date"><b>${dow} ${p.d}</b><span>${MONTHS[p.m].slice(0, 3)}</span></div>
+      <div class="d-main">
+        <div class="d-head"><span class="kind" style="background:var(${KIND_VAR[d.kind]})">${esc(KIND_LABEL[d.kind])}</span>${d.cdo ? `<span class="kind" style="background:var(--accent)">CDO</span>` : ""}${d.isCheckride ? `<span class="kind" style="background:var(--accent)">Checkride</span>` : ""}
+          ${d.trip ? `<span class="trip">Trip ${esc(d.trip)}</span>` : ""}<span class="route"><b>${route.map(esc).join("-")}</b>${codes.length ? " &middot; " + codes.map(esc).join(", ") : ""}</span></div>
+        <dl class="metrics">${m}</dl>
+        ${shown.length ? `<ul class="checks">${shown.map(checkLi).join("")}</ul>` : ""}
+        <details><summary>${okCount ? `${okCount} rule${okCount > 1 ? "s" : ""} passed` : "Details"} &middot; ${d.legs.length} row${d.legs.length > 1 ? "s" : ""} &middot; report ${esc(d.reportSrc)}, release ${esc(d.releaseSrc)}</summary>
+          <ul class="checks" style="margin-top:8px">${d.checks.filter((c) => c.sev === "ok").map(checkLi).join("")}</ul>
+          <div class="tbl-scroll"><table class="legs"><thead><tr><th>Day</th><th>DH</th><th>Flt/code</th><th>Route</th><th>Dep</th><th>Arr</th><th>Time</th><th>Counted as</th></tr></thead><tbody>${legRows}</tbody></table></div>
+        </details>
+      </div>
+      <span class="pill ${d.worst}">${d.worst === "ok" ? "Legal" : d.worst === "warn" ? "Caution" : "Problem"}</span>
+    </article>`;
+  }).join("");
+}
+function setFilter(f) { filterMode = f; document.querySelectorAll("#filter button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.f === f)); if (last) renderDuties(); }
+document.querySelectorAll("#filter button").forEach((b) => b.addEventListener("click", () => setFilter(b.dataset.f)));
+
+/* ---------- Charts ---------- */
+function renderCharts(parsed, res) {
+  const fd = parsed.duties.filter((d) => d.isFDP && d.cum);
+  const card = $("#chartCard");
+  if (!fd.length) { card.hidden = true; return; }
+  card.hidden = false;
+  const mk = (title, key, lim, unit) => {
+    const W = 460, Hh = 190, L = 36, R = 12, T = 14, B = 26;
+    const xs = fd.map((d) => d.fdpEndUtc), x0 = Math.min(...xs) - 864e5, x1 = Math.max(...xs) + 864e5;
+    const vmax = Math.max(lim * 1.15, ...fd.map((d) => d.cum[key] / 36e5));
+    const X = (t) => L + (t - x0) / (x1 - x0) * (W - L - R), Y = (v) => T + (1 - v / vmax) * (Hh - T - B);
+    const pts = fd.map((d) => [X(d.fdpEndUtc), Y(d.cum[key] / 36e5), d.cum[key] / 36e5]);
+    const ticks = [0, lim / 2, lim].map((v) => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="IBM Plex Mono, monospace">${v}</text>`).join("");
+    const limLine = `<line x1="${L}" x2="${W - R}" y1="${Y(lim)}" y2="${Y(lim)}" stroke="var(--fail)" stroke-dasharray="4 3" stroke-width="1.5"/><text x="${W - R}" y="${Y(lim) - 5}" text-anchor="end" font-size="10.5" fill="var(--fail)" font-family="IBM Plex Mono, monospace">limit ${lim}${unit}</text>`;
+    const path = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+    const area = path + ` L${pts[pts.length - 1][0].toFixed(1)} ${Y(0)} L${pts[0][0].toFixed(1)} ${Y(0)} Z`;
+    const dots = pts.map((p) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3" fill="${p[2] > lim ? "var(--fail)" : "var(--fly)"}"/>`).join("");
+    const lastP = pts[pts.length - 1];
+    const dt = (t) => { const p = parts(t, parsed.meta.domTz); return `${MONTHS[p.m].slice(0, 3)} ${p.d}`; };
+    return `<div class="chart"><h3>${title}</h3><svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="${title}">${ticks}
+      <path d="${area}" fill="var(--fly)" fill-opacity=".10"/><path d="${path}" fill="none" stroke="var(--fly)" stroke-width="2"/>${limLine}${dots}
+      <text x="${Math.min(lastP[0] + 6, W - R - 40)}" y="${lastP[1] - 7}" font-size="11" font-weight="600" fill="var(--ink)" font-family="IBM Plex Mono, monospace">${lastP[2].toFixed(1)}</text>
+      <text x="${L}" y="${Hh - 6}" font-size="10" fill="var(--muted)" font-family="IBM Plex Mono, monospace">${dt(x0 + 864e5)}</text>
+      <text x="${W - R}" y="${Hh - 6}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="IBM Plex Mono, monospace">${dt(x1 - 864e5)}</text></svg></div>`;
+  };
+  $("#charts").innerHTML = mk("FDP hours, any 168 hours", "f168", 60, "h") + mk("Flight hours, any 672 hours", "t672", 100, "h");
+}
+
+/* ---------- Add a duty ---------- */
+$("#aType").addEventListener("change", () => { const t = $("#aType").value; $("#aFlt").disabled = !(t === "flight" || t === "dh"); });
+$("#addForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const t = $("#aType").value, date = $("#aDate").value;
+  const [Y, M, D] = date.split("-").map(Number);
+  const dow = ["SU","MO","TU","WE","TH","FR","SA"][new Date(Date.UTC(Y, M - 1, D)).getUTCDay()];
+  const code = (t === "flight" || t === "dh") ? ($("#aFlt").value.trim() || "0000") : t;
+  const fr = $("#aFrom").value.trim().toUpperCase(), to = $("#aTo").value.trim().toUpperCase();
+  const dep = $("#aDep").value.replace(":", ""), arr = $("#aArr").value.replace(":", "");
+  if (!/^[A-Z]{3}$/.test(fr) || !/^[A-Z]{3}$/.test(to)) { $("#addStatus").textContent = "Use 3-letter airport codes, like CLT."; return; }
+  const dd = String(D).padStart(2, "0");
+  // Continue the same duty only if the last row is a leg on this date; otherwise start a new block with its own date header
+  const lastLine = ta.value.trimEnd().split("\n").pop() || "";
+  const needHeader = !new RegExp(`^${dow} ${dd} `).test(lastLine.trim().toUpperCase());
+  let lines = "";
+  if (needHeader) lines += `X${String(M).padStart(2, "0")}${dd} : ${dd}${MON3[M - 1]}\n`;
+  lines += `${dow} ${dd} ${t === "dh" ? "DH" : "-"} ${code} ${fr}-${to} ${dep} ${arr} 0000\n`;
+  if ($("#aEnd").checked) lines += `D-END: ${($("#aRel").value || $("#aArr").value).replace(":", "")}L\n`;
+  ta.value = ta.value.replace(/\s*$/, "\n") + lines;
+  store("text", ta.value);
+  $("#addStatus").textContent = `Added ${dow} ${dd} ${code} ${fr}-${to}. It's at the bottom of the schedule text.`;
+  $("#aFrom").value = to; $("#aDep").value = ""; $("#aArr").value = ""; $("#aRel").value = ""; $("#aEnd").checked = false;
+  analyze();
+});
+
+/* ---------- Upload: images & PDF ---------- */
+const TRANSCRIBE = `The attached image(s) show an airline pilot's crew schedule (a monthly roster or trip/pairing detail) from a crew scheduling system. Transcribe it into plain text lines for a legality checker.
+
+Output ONLY these kinds of lines, in the order they appear:
+1. MONTH <MON> <YYYY> : once at the top, if the month and year can be determined (for example from a "Last Updated" date or the trip dates).
+2. <TRIPID> : <DD><MON>  BSE REPT: <HHMM>L : one line at the start of each trip/pairing. Leave out BSE REPT if no base report time is shown.
+3. <DY> <DD> <DH or -> <CODE> <FROM>-<TO> <DEP> <ARR> <BLK> : one line per leg or activity row. DY is the 2-letter weekday (MO TU WE TH FR SA SU), DD the day of month, DH if the row is marked as a deadhead otherwise -, CODE the flight number or activity code exactly as shown (for example 5123, GRS, SIM, HTL, FAKE, SCR, RDY), FROM-TO the 3-letter airport pair, DEP and ARR the departure and arrival times as 4 digits, BLK the block time as 4 digits (0000 if blank).
+4. D-END: <HHMM>L REPT: <HHMM>L : wherever the schedule shows a duty-end line. Leave out REPT if it isn't shown.
+
+Rules: copy every time exactly as printed; never compute or invent times; if a value is unreadable write ???? in its place. Skip crew lists, hotel names, phone numbers, totals, credit and pay columns, and the calendar sidebar. No commentary and no code fences.
+
+Example output:
+MONTH OCT 2026
+G7714 : 11OCT  BSE REPT: 0714L
+SU 11 DH FAKE TRG-CLT 0759 0759 0000
+MO 12 - GRS CLT-CLT 0800 1700 0345
+D-END: 1700L REPT: 0800L
+TU 13 - 5123 CLT-GSO 0845 0940 0055`;
+
+let sampleFn = null, sampleLimits = null, sampleReady = false;
+(async () => {
+  try { if (window.claude && claude.use) { sampleFn = await claude.use("sample"); if (sampleFn) sampleLimits = await sampleFn.limits().catch(() => null); } } catch (e) {}
+  sampleReady = true; updateUploadHint();
+})();
+function updateUploadHint() {
+  if (sampleReady && !(sampleLimits && sampleLimits.images)) {
+    $("#drop strong").textContent = "Drop a PDF of your schedule";
+    $("#drop .hint").textContent = "or click to choose a file. PDFs with selectable text are read on your device; nothing is uploaded.";
+    $("#fileIn").accept = "application/pdf";
+    if (!load("tabSeen", false)) { showTab("tab-text"); store("tabSeen", true); }
+    setStatus("Tip: copy the trip rows from your crew scheduling page and paste them in the Schedule text tab.");
+  }
+}
+function setStatus(msg, err) { const s = $("#upStatus"); s.textContent = msg; s.classList.toggle("err", !!err); }
+
+const drop = $("#drop");
+["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => handleFiles([...e.dataTransfer.files]));
+$("#fileIn").addEventListener("change", (e) => { handleFiles([...e.target.files]); e.target.value = ""; });
+document.addEventListener("paste", (e) => {
+  const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith("image/") || f.type === "application/pdf");
+  if (files.length) { e.preventDefault(); showTab("tab-upload"); handleFiles(files); }
+});
+
+function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("load")); document.head.appendChild(s); }); }
+let pdfReady = null;
+function ensurePdf() {
+  if (!pdfReady) pdfReady = (async () => {
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js");
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
+    return window.pdfjsLib;
+  })();
+  return pdfReady;
+}
+async function pdfToTextAndImages(file) {
+  const lib = await ensurePdf();
+  const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  let text = "";
+  const n = Math.min(doc.numPages, 12);
+  for (let i = 1; i <= n; i++) {
+    const page = await doc.getPage(i);
+    const tc = await page.getTextContent();
+    const rows = [];
+    for (const it of tc.items) {
+      if (!it.str || !it.str.trim()) continue;
+      const y = it.transform[5], x = it.transform[4];
+      let r = rows.find((r) => Math.abs(r.y - y) < 3);
+      if (!r) rows.push((r = { y, items: [] }));
+      r.items.push({ x, s: it.str });
+    }
+    rows.sort((a, b) => b.y - a.y);
+    text += rows.map((r) => r.items.sort((a, b) => a.x - b.x).map((i) => i.s.trim()).join(" ")).join("\n") + "\n";
+  }
+  const images = async (max) => {
+    const out = [];
+    for (let i = 1; i <= Math.min(doc.numPages, max); i++) {
+      const page = await doc.getPage(i);
+      const vp = page.getViewport({ scale: 2 });
+      const c = document.createElement("canvas"); c.width = vp.width; c.height = vp.height;
+      await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+      out.push(await new Promise((r) => c.toBlob(r, "image/png")));
+    }
+    return out;
+  };
+  return { text, images };
+}
+
+let busyUpload = false;
+async function handleFiles(files) {
+  if (!files.length || busyUpload) return;
+  busyUpload = true;
+  const stream = $("#upStream"); stream.hidden = true; stream.textContent = "";
+  try {
+    const imgs = [];
+    let gotText = "";
+    for (const f of files) {
+      if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) {
+        setStatus(`Reading ${f.name}...`);
+        let pdf;
+        try { pdf = await pdfToTextAndImages(f); } catch (e) { setStatus(`Couldn't open ${f.name}. Try a screenshot of the schedule instead.`, true); continue; }
+        const probe = parseRoster(pdf.text, {});
+        if (probe.duties.length) { gotText += pdf.text + "\n"; }
+        else { const max = sampleLimits?.images?.maxCount || 4; imgs.push(...(await pdf.images(max))); }
+      } else if (f.type.startsWith("image/")) imgs.push(f);
+      else setStatus(`${f.name} isn't an image or PDF.`, true);
+    }
+    if (imgs.length) {
+      if (!sampleFn || !sampleLimits?.images) { setStatus("Reading screenshots isn't available in this view. Paste the schedule text in the Schedule text tab instead.", true); }
+      else {
+        const max = sampleLimits.images.maxCount || 1;
+        let out = "";
+        for (let i = 0; i < imgs.length; i += max) {
+          const batch = imgs.slice(i, i + max);
+          setStatus(`Reading ${imgs.length > 1 ? `screenshots ${i + 1}-${Math.min(i + max, imgs.length)} of ${imgs.length}` : "your screenshot"}... this takes 20-60 seconds.`);
+          stream.hidden = false; stream.textContent = "Thinking...";
+          const { text } = await sampleFn(TRANSCRIBE, { images: batch, modelTier: "default", onText: ({ text }) => { stream.textContent = out + text; stream.scrollTop = stream.scrollHeight; } });
+          out += text.replace(/```[a-z]*\n?|```/g, "").trim() + "\n";
+        }
+        gotText += out;
+      }
+    }
+    if (gotText.trim()) {
+      const unreadable = (gotText.match(/\?\?\?\?/g) || []).length;
+      ta.value = gotText.trim() + "\n"; store("text", ta.value);
+      analyze();
+      const n = last.parsed.duties.length;
+      setStatus(`Read ${n} duty period${n === 1 ? "" : "s"}. ${unreadable ? `${unreadable} value${unreadable > 1 ? "s" : ""} couldn't be read (marked ????); fix them in the Schedule text tab. ` : ""}Compare the rows with your schedule before relying on the result.`, !!unreadable);
+      stream.hidden = true;
+      $("#verdictCard").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  } catch (e) {
+    const code = e && e.code;
+    const msg = { not_granted: "Claude wasn't allowed to read the image. Paste the schedule text instead.", rate_limited: "Too many requests right now. Wait a minute and try again.", image_rejected: "That image couldn't be used. Try a PNG or JPEG screenshot under 20 MB.", refused: "Claude couldn't read that image. Try a tighter screenshot of just the trip rows.", session_expired: "Your session expired. Sign in again, then retry." }[code] || "Something went wrong reading the file. Try again, or paste the schedule text.";
+    setStatus(msg, true);
+  } finally { busyUpload = false; }
+}
+
+/* ---------- Boot ---------- */
+if (load("text", null) === null) $("#textNote").textContent = "Showing a made-up example trip. Replace it with your schedule.";
+analyze();
+</script>
+
+<script>if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));</script>
+</body></html>
