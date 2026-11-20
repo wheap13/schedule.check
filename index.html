@@ -95,7 +95,7 @@ details.settings .fields { margin-top: 12px }
 
 /* Calendar strip */
 .cal-scroll { overflow-x: auto; margin: 0 -4px; padding: 0 4px 4px }
-.cal { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(26px, 1fr); gap: 3px; min-width: 760px }
+.cal { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(24px, 1fr); gap: 3px; min-width: 760px }
 .cal-day { display: flex; flex-direction: column; align-items: stretch; gap: 4px; cursor: default; background: none; border: 0; padding: 0 }
 .cal-day.has { cursor: pointer }
 .cal-track { position: relative; height: 112px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden }
@@ -109,6 +109,7 @@ details.settings .fields { margin-top: 12px }
 .cal-num span { display: block; color: var(--muted); font-size: 10px }
 .cal-day.off .cal-track { background: transparent; border-style: dashed }
 .cal-day.wknd .cal-num span { color: var(--accent) }
+.cal-mon { font-weight: 600; color: var(--accent); font-size: 10px; text-transform: uppercase }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--muted) }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px }
 .axis { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 2px }
@@ -214,7 +215,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <button class="btn" id="clearBtn">Clear</button>
         <span class="note" id="textNote"></span>
       </div>
-      <p class="note">One row per leg or activity: <code>MO 12 - 5123 CLT-GSO 0800 0905 0105</code> (weekday, day, DH or -, flight or code, airports, depart, arrive, block). End each duty with <code>D-END: 1700L</code>. Text copied straight from your scheduling page works as-is.</p>
+      <p class="note">One row per leg or activity: <code>MO 12 - 5123 CLT-GSO 0800 0905 0105</code> (weekday, day, DH or -, flight or code, airports, depart, arrive, block). End each duty with <code>D-END: 1700L</code>. Text copied straight from FLICA works as-is, and so do date-format rows like <code>11/03/2026 1250 STL 0620 CLT 0912</code> (date, flight or code, from, depart, to, arrive).</p>
     </div>
 
     <div id="p-add" role="tabpanel" hidden>
@@ -246,6 +247,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
           <select id="sMonth"><option value="">Auto</option></select></div>
         <div class="field"><label class="label" for="sYear">Year</label><input type="number" id="sYear" placeholder="Auto" min="2020" max="2040"></div>
         <div class="field"><label class="label" for="sDom">Domicile</label><input id="sDom" maxlength="3" placeholder="Auto"></div>
+        <div class="field"><label class="label" for="sFf">Flights in date-format rows</label>
+          <select id="sFf"><option value="auto">Auto (deadhead on training days)</option><option value="operating">All operating</option><option value="deadhead">All deadhead</option></select></div>
         <div class="subhead label">Carry-in from before this schedule (optional, improves the rest and cumulative checks)</div>
         <div class="field"><label class="label" for="cRel">Last release before it</label><input type="datetime-local" id="cRel"></div>
         <div class="field"><label class="label" for="cF7">FDP hrs, prior 7 days</label><input type="number" id="cF7" min="0" step="0.1" placeholder="0"></div>
@@ -408,12 +411,13 @@ function dayKey(utc, tz) { const p = parts(utc, tz); return p.y * 10000 + (p.m +
 /* ---------- Activity classification ---------- */
 const MON = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
 const DOW2 = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
-const SIM_CODES = /^(SIM|FTD|FFS|PT|MV|LOE|LOFT|PC|CKR|SPOT|FBS|PPC|MT)\d*$/;
+const SIM_CODES = /^(SIM|FTD|FFS|PT|MV|LOE|LOFT|LFT|PC|CKR|SPOT|FBS|PPC|MT)\d*$/;
 const CHECK_CODES = /^(PC|PPC|CKR|MV|LOE|CHK|SPOT|MVL)\d*$/;
-const TRAIN_CODES = /^(GRS|GS|GND|CBT|TRN|TRG|CRM|IND|INDOC|EMER|EMR|DG|HAZ|REC|RCT|RQ|DIFF|SYS|ORAL|KV|BRF)\d*$/;
+const TRAIN_CODES = /^(GRS|GS|GND|CBT|TRN|TRG|CRM|IND|INDOC|EMER|EMR|DG|HAZ|REC|RCT|RQ|DIFF|SYS|ORAL|KV|BRF|TST|TEST|EXAM)\d*$/;
 function classify(code, dh) {
   if (/^\d{1,5}[A-Z]?$/.test(code)) return dh ? "deadhead" : "flight";
   if (code === "FAKE") return "placeholder";
+  if (code === "SELF") return "deadhead";
   if (/^(HTL|HOT|HOTEL)$/.test(code)) return "hotel";
   if (/^(RDY|RR|ARS|APT|STBY|SBY|ASB)\d*$/.test(code)) return "ready";
   if (/^(LCR|LC|LRV)\d*$/.test(code)) return "lcr";
@@ -442,6 +446,16 @@ function parseRoster(text, opt = {}) {
     }
     const br = line.match(/BSE\s*REPT:?\s*(\d{4})/);
     if (br) rows.push({ t: "bserept", hhmm: br[1] });
+    // Date-format rows (FFDO export): 11/03/2026 1250 STL 0620 CLT 0912
+    const fd = line.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(?:(DH)\s+)?(\S+)\s+([A-Z0-9]{3})\s+(\d{4})\s+([A-Z0-9]{3})\s+(\d{4})(?:\s+(\d{4}))?/);
+    if (fd) {
+      let yy = +fd[3]; if (yy < 100) yy += 2000;
+      const mm = +fd[1] - 1, dd = +fd[2];
+      const code = fd[5].replace(/^0+(?=[A-Z])/, "");
+      if (meta.month == null) { meta.month = mm; meta.year = meta.year || yy; }
+      rows.push({ t: "leg", fmt: "ffdo", date: { y: yy, m: mm }, dow: DOW2[new Date(Date.UTC(yy, mm, dd)).getUTCDay()], dom: dd, dh: !!fd[4], code, from: fd[6], to: fd[8], dep: fd[7], arr: fd[9], blk: fd[10] || null, raw: raw.trim() });
+      continue;
+    }
     const lg = line.match(/^(MO|TU|WE|TH|FR|SA|SU)\s+(\d{1,2})\s+(.*?)\s*\b([A-Z0-9]{3})\s*-\s*([A-Z0-9]{3})\s+(\d{4})\s+(\d{4})(?:\s+(\d{4}))?/);
     if (lg) {
       const toks = lg[3].split(" ").filter(Boolean);
@@ -496,11 +510,12 @@ function parseRoster(text, opt = {}) {
       if (cur) { closeDuty(r.end); pendingRept = r.rept; }
     } else if (r.t === "leg") {
       let y, m;
-      if (trip) { y = trip.y; m = trip.m; if (r.dom < trip.day) m++; }
+      if (r.date) { y = r.date.y; m = r.date.m; }
+      else if (trip) { y = trip.y; m = trip.m; if (r.dom < trip.day) m++; }
       else { y = year; m = baseMonth; if (lastDom != null && r.dom < lastDom - 20) curMonOffset++; m += curMonOffset; }
       lastDom = r.dom;
       const dt = new Date(Date.UTC(y, m, r.dom)); y = dt.getUTCFullYear(); m = dt.getUTCMonth();
-      dowTot++; if (DOW2[dt.getUTCDay()] !== r.dow) dowMiss++;
+      if (!r.date) { dowTot++; if (DOW2[dt.getUTCDay()] !== r.dow) dowMiss++; }
       const kind = classify(r.code, r.dh);
       const fTz = tzOf(r.from), tTz = tzOf(r.to);
       const a = hm(r.dep), b = hm(r.arr);
@@ -522,6 +537,16 @@ function parseRoster(text, opt = {}) {
   closeDuty(null);
   if (dowTot && dowMiss / dowTot > 0.3) warnings.push(`The weekdays on the schedule don't match ${["January","February","March","April","May","June","July","August","September","October","November","December"][baseMonth]} ${year}. Check the month and year settings.`);
   if (unknown.size) warnings.push(`Unknown airport time zone for ${[...unknown].join(", ")}. Using ${dom} local time for these.`);
+
+  // Date-format exports don't mark deadheads. Infer them unless the user chose otherwise.
+  const mode = opt.ffdoFlights || "auto";
+  for (const d of duties) {
+    if (!d.legs.some((l) => l.fmt === "ffdo")) continue;
+    const support = d.legs.some((l) => l.fmt === "ffdo" && (l.from === "TRG" || l.to === "TRG" || ["training", "sim", "hotel", "placeholder", "other"].includes(l.kind) || l.code === "SELF"));
+    for (const l of d.legs) if (l.fmt === "ffdo" && l.kind === "flight" && !l.dh && (mode === "deadhead" || (mode === "auto" && support))) { l.kind = "deadhead"; l.dhInferred = true; }
+    if (mode === "auto" && support && d.legs.some((l) => l.dhInferred)) meta.inferredDH = true;
+  }
+  if (meta.inferredDH) warnings.push("Flights in the date-format rows aren't marked as deadheads. Flights on days with training, hotel or positioning rows are counted as deadheads. Change this under Settings if any were operating legs.");
 
   // Finish each duty
   for (const d of duties) finishDuty(d, domTz);
@@ -545,6 +570,10 @@ function finishDuty(d, domTz) {
     if (t > first.depUtc + MIN) t -= DAY;
     if (first.depUtc - t > 14 * H) t += DAY;
     d.reportUtc = t; d.reportSrc = "schedule";
+  } else if (first.fmt === "ffdo") {
+    const off = (first.kind === "flight" || first.kind === "placeholder") ? 45 : (first.kind === "deadhead") ? 30 : 0;
+    d.reportUtc = first.depUtc - off * MIN;
+    d.reportSrc = off ? `${off} min before the first row` : "start of first row";
   } else {
     const fl = firstReal;
     const off = (fl.kind === "flight") ? 45 : (fl.kind === "deadhead") ? 30 : 0;
@@ -558,6 +587,10 @@ function finishDuty(d, domTz) {
     let t = localToUtc(p.y, p.m, p.d, a.h, a.m, d.releaseTz);
     if (t < last.arrUtc - H) t += DAY;
     d.releaseUtc = t; d.releaseSrc = "schedule";
+  } else if (last.fmt === "ffdo") {
+    const add = ["flight", "deadhead", "placeholder"].includes(last.kind) ? 15 : 0;
+    d.releaseUtc = Math.max(...d.legs.map((l) => l.arrUtc)) + add * MIN;
+    d.releaseSrc = add ? "15 min after the last row (CBA 12.C.4)" : "end of last row";
   } else {
     const lastReal = real[real.length - 1] || last;
     const add = (lastReal.kind === "flight" || lastReal.kind === "deadhead") ? 15 : 0;
@@ -573,6 +606,7 @@ function finishDuty(d, domTz) {
   d.fdpMs = d.isFDP ? d.fdpEndUtc - d.reportUtc : 0;
   d.legCount = real.filter((l) => l.kind === "flight" || l.kind === "deadhead").length;
   d.simMs = real.filter((l) => l.kind === "sim").reduce((s, l) => s + (l.arrUtc - l.depUtc), 0);
+  d.trainMs = real.filter((l) => l.kind === "sim" || l.kind === "training").reduce((s, l) => s + (l.arrUtc - l.depUtc), 0);
   d.isCheckride = real.some((l) => CHECK_CODES.test(l.code));
   d.countsAsDuty = d.kind !== "lcr";
   d.isTraining = d.kind === "training";
@@ -689,9 +723,10 @@ function evaluate(parsed, carry = {}) {
     }
     // --- Training day limits
     if (d.isTraining) {
-      if (d.dutyMs > 10 * H) chk(c, "fail", "cba", "CBA 11.B.2", `Training day of ${dur(d.dutyMs)}. You can't be required to attend training more than 10:00 a day.`);
-      else chk(c, "ok", "cba", "CBA 11.B.2", `Training day ${dur(d.dutyMs)} (max 10:00).`);
-      if (d.simMs > 4 * H) chk(c, "fail", "cba", "CBA 11.B.4.a", `${dur(d.simMs)} of simulator scheduled. The limit is 4:00 a day (waivable, never compelled).`);
+      const travel = d.dutyMs - d.trainMs > 30 * MIN ? ` Your full duty day is ${dur(d.dutyMs)} including travel.` : "";
+      if (d.trainMs > 10 * H) chk(c, "fail", "cba", "CBA 11.B.2", `${dur(d.trainMs)} of training scheduled. You can't be required to attend training more than 10:00 a day.${travel}`);
+      else chk(c, "ok", "cba", "CBA 11.B.2", `${dur(d.trainMs)} of training (max 10:00).${travel}`);
+
     }
 
     // --- 117.25(b) 30 hours free in prior 168
@@ -745,7 +780,7 @@ function evaluate(parsed, carry = {}) {
   const dayInfo = {};
   for (const d of duties) for (const k of d.days) { (dayInfo[k] = dayInfo[k] || []).push(d); }
   const isWork = (k) => (dayInfo[k] || []).length > 0;
-  const workKind = (k) => { const ds = dayInfo[k] || []; if (!ds.length) return null; if (ds.some((d) => d.flying && !d.isTraining)) return "fly"; if (ds.some((d) => d.isTraining)) return "train"; return "other"; };
+  const workKind = (k) => { const ds = dayInfo[k] || []; if (!ds.length) return null; if (ds.some((d) => d.isFDP || ["scr", "ready", "lcr"].includes(d.kind))) return "fly"; if (ds.some((d) => d.isTraining)) return "train"; return "other"; };
   // consecutive duty days (across all keys present)
   const allKeys = [...new Set(duties.flatMap((d) => d.days))].sort((a, b) => a - b);
   const toDate = (k) => Date.UTC(Math.floor(k / 10000), Math.floor(k / 100) % 100 - 1, k % 100);
@@ -773,13 +808,16 @@ function evaluate(parsed, carry = {}) {
   if (worstTrain) chk(month, worstTrain > 6 ? "fail" : "ok", "cba", "CBA 11.B.1", `Longest run of training days: ${worstTrain} (limit 6, then a day off at the training site).`);
 
   // Training hours per 7 days
-  const trainIv = duties.filter((d) => d.isTraining).map((d) => [d.reportUtc, d.releaseUtc]);
+  const trainIv = duties.flatMap((d) => d.legs.filter((l) => l.kind === "sim" || l.kind === "training").map((l) => [l.depUtc, l.arrUtc]));
   if (trainIv.length) {
     let worst = 0, worstEnd = null;
     for (const [, b] of trainIv) { const s = sumOverlap(trainIv, b - 7 * DAY, b); if (s > worst) { worst = s; worstEnd = b; } }
     if (worst > 50 * H) chk(month, "fail", "cba", "CBA 11.B.1", `${dur(worst)} of training in the 7 days ending ${fmtKey(dayKey(worstEnd, domTz))}. The limit is 50 hours a week.`);
     else chk(month, "ok", "cba", "CBA 11.B.1", `Most training in any 7 days: ${dur(worst)} (limit 50:00).`);
   }
+  // Sim blocks longer than the in-sim limit (the block usually includes briefings)
+  const longSim = duties.filter((d) => d.simMs > 4 * H);
+  if (longSim.length) chk(month, "info", "cba", "CBA 11.B.4.a", `${longSim.length} sim day${longSim.length > 1 ? "s are" : " is"} scheduled as a block of up to ${dur(Math.max(...longSim.map((d) => d.simMs)))}. Time in the simulator itself is capped at 4:00 a day, in periods of up to 2:00 with 15 min breaks. Briefing and debriefing don't count, so confirm the actual sim time with your instructor.`);
   // Trip sections
   const trips = {};
   for (const d of duties) if (d.trip) (trips[d.trip] = trips[d.trip] || []).push(d);
@@ -866,7 +904,7 @@ document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () 
 /* ---------- Settings ---------- */
 const sMonth = $("#sMonth");
 MONTHS.forEach((m, i) => sMonth.insertAdjacentHTML("beforeend", `<option value="${i}">${m}</option>`));
-const SETTINGS = ["sMonth", "sYear", "sDom", "cRel", "cF7", "cF28", "cT28"];
+const SETTINGS = ["sMonth", "sYear", "sDom", "sFf", "cRel", "cF7", "cF28", "cT28"];
 const savedSettings = load("settings", {});
 SETTINGS.forEach((id) => { if (savedSettings[id] != null) $("#" + id).value = savedSettings[id]; $("#" + id).addEventListener("change", () => { saveSettings(); analyze(); }); });
 function saveSettings() { const o = {}; SETTINGS.forEach((id) => (o[id] = $("#" + id).value)); store("settings", o); }
@@ -886,6 +924,7 @@ function analyze(scroll) {
   const opt = {};
   if (sMonth.value !== "") opt.month = +sMonth.value;
   if ($("#sYear").value) opt.year = +$("#sYear").value;
+  opt.ffdoFlights = $("#sFf").value || "auto";
   if ($("#sDom").value.trim()) opt.domicile = $("#sDom").value.trim().toUpperCase();
   const parsed = parseRoster(ta.value, opt);
   const carry = {};
@@ -940,11 +979,15 @@ function render(parsed, res) {
   // Calendar strip
   const tz = meta.domTz, y = meta.rosterYear, mo = meta.rosterMonth;
   const cal = $("#cal"); let html = "";
-  for (let d = 1; d <= res.nDays; d++) {
-    const key = y * 10000 + (mo + 1) * 100 + d;
+  const lastKey = Math.max(...duties.flatMap((x) => x.days));
+  const lastDate = new Date(Date.UTC(Math.floor(lastKey / 10000), Math.floor(lastKey / 100) % 100 - 1, lastKey % 100));
+  const spanDays = Math.max(res.nDays, Math.min(62, Math.round((lastDate - Date.UTC(y, mo, 1)) / 864e5) + 1));
+  for (let i = 0; i < spanDays; i++) {
+    const cd = new Date(Date.UTC(y, mo, 1 + i)), cy = cd.getUTCFullYear(), cm = cd.getUTCMonth(), d = cd.getUTCDate();
+    const key = cy * 10000 + (cm + 1) * 100 + d;
     const ds = duties.filter((x) => x.days.includes(key));
-    const dow = new Date(Date.UTC(y, mo, d)).getUTCDay();
-    const dayStart = localToUtc(y, mo, d, 0, 0, tz), dayEnd = localToUtc(y, mo, d + 1, 0, 0, tz);
+    const dow = cd.getUTCDay();
+    const dayStart = localToUtc(cy, cm, d, 0, 0, tz), dayEnd = localToUtc(cy, cm, d + 1, 0, 0, tz);
     const span = dayEnd - dayStart;
     let bars = "";
     for (const x of ds) {
@@ -953,11 +996,11 @@ function render(parsed, res) {
     }
     const sev = ds.some((x) => x.worst === "fail") ? "fail" : ds.some((x) => x.worst === "warn") ? "warn" : ds.length ? "ok" : "";
     const title = ds.length ? ds.map((x) => `${KIND_LABEL[x.kind]} ${hhmm(x.reportUtc, x.reportTz)}-${hhmm(x.releaseUtc, x.releaseTz)}`).join(", ") : "Day off";
-    html += `<button class="cal-day ${ds.length ? "has" : "off"} ${dow === 0 || dow === 6 ? "wknd" : ""}" data-duty="${ds.length ? ds[0].idx : ""}" title="${esc(MONTHS[mo].slice(0,3) + " " + d + ": " + title)}" ${ds.length ? "" : "tabindex=-1"}>
-      <span class="cal-sev ${sev}"></span><span class="cal-track">${bars}</span><span class="cal-num">${d}<span>${"SMTWTFS"[dow]}</span></span></button>`;
+    html += `<button class="cal-day ${ds.length ? "has" : "off"} ${dow === 0 || dow === 6 ? "wknd" : ""}" data-duty="${ds.length ? ds[0].idx : ""}" title="${esc(MONTHS[cm].slice(0,3) + " " + d + ": " + title)}" ${ds.length ? "" : "tabindex=-1"}>
+      <span class="cal-sev ${sev}"></span><span class="cal-track">${bars}</span><span class="cal-num">${d === 1 && i > 0 ? `<b class="cal-mon">${MONTHS[cm].slice(0, 3)}</b>` : d}<span>${"SMTWTFS"[dow]}</span></span></button>`;
   }
   cal.innerHTML = html;
-  $("#calNote").textContent = `${res.offDays.length} of ${res.nDays} days free of duty`;
+  $("#calNote").textContent = `${res.offDays.length} of ${res.nDays} days in ${MONTHS[mo]} free of duty${spanDays > res.nDays ? `; continues into ${MONTHS[(mo + 1) % 12]}` : ""}`;
   cal.querySelectorAll(".cal-day.has").forEach((b) => b.addEventListener("click", () => {
     if (filterMode !== "all") setFilter("all");
     const el = $("#duty-" + b.dataset.duty); if (!el) return;
@@ -996,7 +1039,7 @@ function renderDuties() {
     m += metric("Rest before", d.restBefore == null ? "&mdash;" : dur(d.restBefore));
     const shown = d.checks.filter((c) => c.sev !== "ok").sort((a, b) => order[a.sev] - order[b.sev]);
     const okCount = d.checks.filter((c) => c.sev === "ok").length;
-    const legRows = d.legs.map((l) => `<tr><td>${l.dow} ${String(l.dom).padStart(2, "0")}</td><td>${l.dh ? "DH" : ""}</td><td>${esc(l.code)}</td><td>${esc(l.from)}-${esc(l.to)}</td><td>${esc(l.dep)}</td><td>${esc(l.arr)}</td><td>${l.kind === "flight" || l.kind === "deadhead" ? dur(l.arrUtc - l.depUtc) : ""}</td><td>${esc({ flight: "operating", deadhead: "deadhead", placeholder: "placeholder (not counted)", hotel: "hotel", training: "training", sim: "simulator", scr: "short-call", lcr: "long-call", ready: "ready reserve", other: "duty" }[l.kind])}</td></tr>`).join("");
+    const legRows = d.legs.map((l) => `<tr><td>${l.dow} ${String(l.dom).padStart(2, "0")}</td><td>${l.dh ? "DH" : ""}</td><td>${esc(l.code)}</td><td>${esc(l.from)}-${esc(l.to)}</td><td>${esc(l.dep)}</td><td>${esc(l.arr)}</td><td>${l.kind === "flight" || l.kind === "deadhead" ? dur(l.arrUtc - l.depUtc) : ""}</td><td>${esc({ flight: "operating", deadhead: "deadhead", placeholder: "placeholder (not counted)", hotel: "hotel", training: "training", sim: "simulator", scr: "short-call", lcr: "long-call", ready: "ready reserve", other: "duty" }[l.kind])}${l.dhInferred ? " (assumed)" : ""}</td></tr>`).join("");
     return `<article class="duty sev-${d.worst}" id="duty-${d.idx}">
       <div class="d-date"><b>${dow} ${p.d}</b><span>${MONTHS[p.m].slice(0, 3)}</span></div>
       <div class="d-main">
@@ -1100,7 +1143,7 @@ function updateUploadHint() {
     $("#drop .hint").textContent = "or click to choose a file. PDFs with selectable text are read on your device; nothing is uploaded.";
     $("#fileIn").accept = "application/pdf";
     if (!load("tabSeen", false)) { showTab("tab-text"); store("tabSeen", true); }
-    setStatus("Tip: copy the trip rows from your crew scheduling page and paste them in the Schedule text tab.");
+    setStatus("Tip: copy your schedule from FLICA (or the date-format export) and paste it in the Schedule text tab.");
   }
 }
 function setStatus(msg, err) { const s = $("#upStatus"); s.textContent = msg; s.classList.toggle("err", !!err); }
